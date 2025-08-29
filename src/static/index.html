@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI資訊安全RAG Chat機器人</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 1200px;
+            height: 90vh;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            color: #3498db;
+        }
+
+        .logo p {
+            font-size: 0.9rem;
+            color: #bdc3c7;
+        }
+
+        .agent-selector {
+            margin-bottom: 30px;
+        }
+
+        .agent-selector h3 {
+            margin-bottom: 15px;
+            color: #3498db;
+        }
+
+        .agent-option {
+            padding: 12px;
+            margin-bottom: 10px;
+            background: rgba(52, 152, 219, 0.1);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .agent-option:hover {
+            background: rgba(52, 152, 219, 0.2);
+            border-color: #3498db;
+        }
+
+        .agent-option.active {
+            background: #3498db;
+            border-color: #3498db;
+        }
+
+        .agent-option h4 {
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .agent-option p {
+            font-size: 0.8rem;
+            color: #bdc3c7;
+        }
+
+        .agent-option.active p {
+            color: white;
+        }
+
+        .features {
+            flex: 1;
+        }
+
+        .features h3 {
+            margin-bottom: 15px;
+            color: #3498db;
+        }
+
+        .feature-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            background: #34495e;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .chat-header h2 {
+            margin-bottom: 5px;
+        }
+
+        .chat-header p {
+            color: #bdc3c7;
+            font-size: 0.9rem;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 20px;
+            position: relative;
+        }
+
+        .message.user .message-content {
+            background: #3498db;
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.bot .message-content {
+            background: white;
+            color: #2c3e50;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin: 0 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+
+        .message.user .message-avatar {
+            background: #3498db;
+        }
+
+        .message.bot .message-avatar {
+            background: #e74c3c;
+        }
+
+        .analysis-result {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f1f2f6;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+        }
+
+        .analysis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .confidence-score {
+            background: #27ae60;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+
+        .risk-score {
+            background: #e74c3c;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+
+        .chat-input {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .input-group {
+            flex: 1;
+        }
+
+        .input-group textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            resize: none;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .send-button {
+            padding: 15px 25px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s ease;
+        }
+
+        .send-button:hover {
+            background: #2980b9;
+        }
+
+        .send-button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .options-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .option-button {
+            padding: 8px 15px;
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .option-button:hover {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #7f8c8d;
+        }
+
+        .loading-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .loading-dot {
+            width: 8px;
+            height: 8px;
+            background: #3498db;
+            border-radius: 50%;
+            animation: loading 1.4s infinite ease-in-out;
+        }
+
+        .loading-dot:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes loading {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        .status-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 10px;
+            color: white;
+            font-size: 0.9rem;
+            z-index: 1000;
+        }
+
+        .status-indicator.success {
+            background: #27ae60;
+        }
+
+        .status-indicator.error {
+            background: #e74c3c;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                width: 100%;
+                height: 100vh;
+                border-radius: 0;
+            }
+
+            .sidebar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="sidebar">
+            <div class="logo">
+                <h1>🛡️ AI Security</h1>
+                <p>RAG Chat機器人</p>
+            </div>
+
+            <div class="agent-selector">
+                <h3>選擇AI Agent</h3>
+                <div class="agent-option active" data-agent="auto">
+                    <h4>🤖 智慧路由</h4>
+                    <p>自動選擇最適合的Agent</p>
+                </div>
+                <div class="agent-option" data-agent="threat_analysis">
+                    <h4>🔍 威脅分析</h4>
+                    <p>威脅情報查詢與風險評估</p>
+                </div>
+                <div class="agent-option" data-agent="account_security">
+                    <h4>👤 帳號安全</h4>
+                    <p>高風險帳號識別與分析</p>
+                </div>
+                <div class="agent-option" data-agent="network_monitoring">
+                    <h4>🌐 網路監控</h4>
+                    <p>網路事件分析與故障診斷</p>
+                </div>
+                <div class="agent-option" data-agent="multi_agent">
+                    <h4>🔄 多Agent協作</h4>
+                    <p>綜合多專家分析結果</p>
+                </div>
+            </div>
+
+            <div class="features">
+                <h3>核心功能</h3>
+                <div class="feature-item">📊 即時威脅分析</div>
+                <div class="feature-item">🔐 帳號風險評估</div>
+                <div class="feature-item">🌐 網路事件診斷</div>
+                <div class="feature-item">📚 知識庫檢索</div>
+                <div class="feature-item">🤖 AI智慧問答</div>
+                <div class="feature-item">📈 風險評分</div>
+            </div>
+        </div>
+
+        <div class="main-chat">
+            <div class="chat-header">
+                <h2>AI資訊安全專家</h2>
+                <p>基於Azure OpenAI的智慧安全分析系統</p>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <p>您好！我是AI資訊安全專家，專門協助您進行安全分析和威脅評估。</p>
+                        <p>我可以幫助您：</p>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>分析威脅情報和攻擊模式</li>
+                            <li>識別高風險帳號和異常行為</li>
+                            <li>診斷網路事件和故障問題</li>
+                            <li>提供安全建議和防護措施</li>
+                        </ul>
+                        <p>請選擇左側的AI Agent或直接提出您的安全問題！</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input">
+                <div class="options-container">
+                    <div class="option-button" onclick="sendQuickQuery('分析最近的釣魚攻擊趨勢')">釣魚攻擊分析</div>
+                    <div class="option-button" onclick="sendQuickQuery('檢查異常登入行為')">異常登入檢查</div>
+                    <div class="option-button" onclick="sendQuickQuery('網路設備故障診斷')">網路故障診斷</div>
+                    <div class="option-button" onclick="sendQuickQuery('安全政策合規檢查')">合規檢查</div>
+                </div>
+                <div class="input-container">
+                    <div class="input-group">
+                        <textarea id="messageInput" placeholder="請輸入您的安全問題..." rows="2"></textarea>
+                    </div>
+                    <button class="send-button" id="sendButton" onclick="sendMessage()">發送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentAgent = 'auto';
+        let isLoading = false;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // Agent選擇器事件
+            document.querySelectorAll('.agent-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    document.querySelectorAll('.agent-option').forEach(opt => opt.classList.remove('active'));
+                    this.classList.add('active');
+                    currentAgent = this.dataset.agent;
+                    
+                    // 更新聊天標題
+                    const agentNames = {
+                        'auto': '智慧路由Agent',
+                        'threat_analysis': '威脅分析Agent',
+                        'account_security': '帳號安全Agent',
+                        'network_monitoring': '網路監控Agent',
+                        'multi_agent': '多Agent協作'
+                    };
+                    
+                    document.querySelector('.chat-header h2').textContent = agentNames[currentAgent];
+                });
+            });
+
+            // 輸入框事件
+            const messageInput = document.getElementById('messageInput');
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // 測試API連接
+            testConnection();
+        });
+
+        // 測試API連接
+        async function testConnection() {
+            try {
+                const response = await fetch('/api/rag/health');
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    showStatus('系統連接正常', 'success');
+                } else {
+                    showStatus('系統連接異常', 'error');
+                }
+            } catch (error) {
+                showStatus('無法連接到後端服務', 'error');
+                console.error('Connection test failed:', error);
+            }
+        }
+
+        // 顯示狀態訊息
+        function showStatus(message, type) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status-indicator ${type}`;
+            statusDiv.textContent = message;
+            document.body.appendChild(statusDiv);
+
+            setTimeout(() => {
+                statusDiv.remove();
+            }, 3000);
+        }
+
+        // 快速查詢
+        function sendQuickQuery(query) {
+            document.getElementById('messageInput').value = query;
+            sendMessage();
+        }
+
+        // 發送訊息
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (!message || isLoading) return;
+
+            // 添加用戶訊息
+            addMessage(message, 'user');
+            messageInput.value = '';
+            
+            // 顯示載入狀態
+            isLoading = true;
+            updateSendButton();
+            addLoadingMessage();
+
+            try {
+                // 準備API請求
+                const endpoint = currentAgent === 'multi_agent' ? '/api/rag/chat' : '/api/rag/chat';
+                const requestData = {
+                    query: message,
+                    agent: currentAgent === 'auto' ? null : currentAgent,
+                    multi_agent: currentAgent === 'multi_agent',
+                    context: {}
+                };
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const data = await response.json();
+                
+                // 移除載入訊息
+                removeLoadingMessage();
+
+                if (data.success) {
+                    addAnalysisResult(data.result);
+                } else {
+                    addMessage(`錯誤: ${data.error}`, 'bot');
+                }
+
+            } catch (error) {
+                removeLoadingMessage();
+                addMessage(`連接錯誤: ${error.message}`, 'bot');
+                console.error('Send message error:', error);
+            } finally {
+                isLoading = false;
+                updateSendButton();
+            }
+        }
+
+        // 添加訊息
+        function addMessage(content, sender) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = sender === 'user' ? '👤' : '🤖';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = formatMessage(content);
+
+            if (sender === 'user') {
+                messageDiv.appendChild(contentDiv);
+                messageDiv.appendChild(avatar);
+            } else {
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(contentDiv);
+            }
+
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 添加分析結果
+        function addAnalysisResult(result) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = '🤖';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            let content = '';
+            
+            if (result.multi_agent_results) {
+                // 多Agent結果
+                content += '<h4>🔄 多Agent協作分析結果</h4>';
+                content += `<p><strong>查詢:</strong> ${result.query}</p>`;
+                
+                if (result.synthesis) {
+                    content += '<div class="analysis-result">';
+                    content += '<h5>📊 綜合分析</h5>';
+                    content += `<p>${formatMessage(result.synthesis)}</p>`;
+                    content += '</div>';
+                }
+
+                // 各Agent詳細結果
+                for (const [agentName, agentResult] of Object.entries(result.multi_agent_results)) {
+                    if (agentResult.analysis) {
+                        content += '<div class="analysis-result">';
+                        content += `<div class="analysis-header">`;
+                        content += `<h5>${getAgentDisplayName(agentName)}</h5>`;
+                        if (agentResult.confidence) {
+                            content += `<span class="confidence-score">信心度: ${(agentResult.confidence * 100).toFixed(0)}%</span>`;
+                        }
+                        if (agentResult.risk_score) {
+                            content += `<span class="risk-score">風險評分: ${agentResult.risk_score}</span>`;
+                        }
+                        content += '</div>';
+                        content += `<p>${formatMessage(agentResult.analysis)}</p>`;
+                        content += '</div>';
+                    }
+                }
+            } else {
+                // 單Agent結果
+                content += `<h4>${getAgentDisplayName(result.routed_agent || result.agent)}</h4>`;
+                content += `<p><strong>查詢:</strong> ${result.query}</p>`;
+                
+                content += '<div class="analysis-result">';
+                content += '<div class="analysis-header">';
+                content += '<h5>📊 分析結果</h5>';
+                if (result.confidence) {
+                    content += `<span class="confidence-score">信心度: ${(result.confidence * 100).toFixed(0)}%</span>`;
+                }
+                if (result.risk_score) {
+                    content += `<span class="risk-score">風險評分: ${result.risk_score}</span>`;
+                }
+                content += '</div>';
+                content += `<p>${formatMessage(result.analysis)}</p>`;
+                content += '</div>';
+
+                // 建議行動
+                if (result.recommended_actions && result.recommended_actions.length > 0) {
+                    content += '<div class="analysis-result">';
+                    content += '<h5>💡 建議行動</h5>';
+                    content += '<ul>';
+                    result.recommended_actions.forEach(action => {
+                        content += `<li>${action}</li>`;
+                    });
+                    content += '</ul>';
+                    content += '</div>';
+                }
+            }
+
+            contentDiv.innerHTML = content;
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 取得Agent顯示名稱
+        function getAgentDisplayName(agentName) {
+            const names = {
+                'threat_analysis': '🔍 威脅分析Agent',
+                'account_security': '👤 帳號安全Agent',
+                'network_monitoring': '🌐 網路監控Agent',
+                'auto': '🤖 智慧路由Agent'
+            };
+            return names[agentName] || agentName;
+        }
+
+        // 格式化訊息
+        function formatMessage(text) {
+            if (!text) return '';
+            
+            // 將換行符轉換為<br>
+            text = text.replace(/\n/g, '<br>');
+            
+            // 簡單的markdown支援
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            return text;
+        }
+
+        // 添加載入訊息
+        function addLoadingMessage() {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            messageDiv.id = 'loadingMessage';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = '🤖';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content loading';
+            contentDiv.innerHTML = `
+                <span>正在分析中</span>
+                <div class="loading-dots">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+            `;
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 移除載入訊息
+        function removeLoadingMessage() {
+            const loadingMessage = document.getElementById('loadingMessage');
+            if (loadingMessage) {
+                loadingMessage.remove();
+            }
+        }
+
+        // 更新發送按鈕狀態
+        function updateSendButton() {
+            const sendButton = document.getElementById('sendButton');
+            sendButton.disabled = isLoading;
+            sendButton.textContent = isLoading ? '分析中...' : '發送';
+        }
+    </script>
+</body>
+</html>
