@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI資訊安全RAG Chat機器人</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 頂部導航欄 */
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .navbar .logo .icon {
+            font-size: 24px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #667eea;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .user-provider {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: #c82333;
+        }
+
+        /* 主要內容區域 */
+        .main-container {
+            flex: 1;
+            display: flex;
+            max-width: 1200px;
+            margin: 20px auto;
+            gap: 20px;
+            padding: 0 20px;
+            width: 100%;
+        }
+
+        /* 側邊欄 */
+        .sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+
+        .sidebar h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .agent-selector {
+            margin-bottom: 25px;
+        }
+
+        .agent-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .agent-option:hover {
+            background: #f8f9ff;
+            border-color: #667eea;
+        }
+
+        .agent-option.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .agent-option input[type="radio"] {
+            margin: 0;
+        }
+
+        .agent-icon {
+            font-size: 20px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .agent-info {
+            flex: 1;
+        }
+
+        .agent-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .agent-desc {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        /* 聊天區域 */
+        .chat-container {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 20px 25px;
+            border-bottom: 1px solid #e1e5e9;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .chat-header h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .chat-status {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px 25px;
+            overflow-y: auto;
+            max-height: 500px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: #667eea;
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: #f1f3f4;
+            color: #333;
+        }
+
+        .message-content {
+            flex: 1;
+            max-width: 70%;
+        }
+
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+
+        .message.user .message-bubble {
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant .message-bubble {
+            background: #f1f3f4;
+            color: #333;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+            text-align: right;
+        }
+
+        .message.assistant .message-time {
+            text-align: left;
+        }
+
+        .analysis-result {
+            margin-top: 10px;
+            padding: 12px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .confidence-score {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .confidence-bar {
+            flex: 1;
+            height: 6px;
+            background: #e1e5e9;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #dc3545, #ffc107, #28a745);
+            transition: width 0.3s ease;
+        }
+
+        /* 輸入區域 */
+        .chat-input {
+            padding: 20px 25px;
+            border-top: 1px solid #e1e5e9;
+            background: rgba(102, 126, 234, 0.02);
+        }
+
+        .input-container {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        #messageInput {
+            width: 100%;
+            min-height: 44px;
+            max-height: 120px;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 22px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        #messageInput:focus {
+            border-color: #667eea;
+        }
+
+        #sendButton {
+            background: #667eea;
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        #sendButton:hover {
+            background: #5a67d8;
+            transform: scale(1.05);
+        }
+
+        #sendButton:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 12px 16px;
+            color: #666;
+            font-style: italic;
+        }
+
+        /* 快速查詢按鈕 */
+        .quick-queries {
+            margin-top: 15px;
+        }
+        
+        .quick-query-btn {
+            display: block;
+            width: 100%;
+            padding: 10px 12px;
+            margin: 6px 0;
+            background: #f8f9ff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            color: #333;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+        
+        .quick-query-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                margin: 10px;
+                padding: 0;
+            }
+
+            .sidebar {
+                width: 100%;
+                order: 2;
+            }
+
+            .chat-container {
+                order: 1;
+                min-height: 400px;
+            }
+
+            .navbar {
+                padding: 10px 15px;
+            }
+
+            .navbar .logo {
+                font-size: 16px;
+            }
+
+            .user-details {
+                display: none;
+            }
+        }
+
+        /* 載入動畫 */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 錯誤訊息 */
+        .error-message {
+            background: #fee;
+            color: #c53030;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 15px 25px;
+            border: 1px solid #fed7d7;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 導航欄 -->
+    <nav class="navbar">
+        <div class="logo">
+            <span class="icon">🛡️</span>
+            <span>AI資訊安全RAG Chat機器人</span>
+        </div>
+        <div class="user-info" id="userInfo" style="display: none;">
+            <div class="user-avatar" id="userAvatar"></div>
+            <div class="user-details">
+                <div class="user-name" id="userName"></div>
+                <div class="user-provider" id="userProvider"></div>
+            </div>
+            <button class="logout-btn" id="logoutBtn">登出</button>
+        </div>
+    </nav>
+
+    <!-- 主要內容 -->
+    <div class="main-container">
+        <!-- 側邊欄 -->
+        <div class="sidebar">
+            <h3>🤖 選擇AI Agent</h3>
+            <div class="agent-selector">
+                <div class="agent-option active" data-agent="smart_router">
+                    <input type="radio" name="agent" value="smart_router" checked>
+                    <span class="agent-icon">🧠</span>
+                    <div class="agent-info">
+                        <div class="agent-name">智慧路由</div>
+                        <div class="agent-desc">自動選擇最適合的專業Agent</div>
+                    </div>
+                </div>
+                
+                <div class="agent-option" data-agent="threat_analysis">
+                    <input type="radio" name="agent" value="threat_analysis">
+                    <span class="agent-icon">⚠️</span>
+                    <div class="agent-info">
+                        <div class="agent-name">威脅分析</div>
+                        <div class="agent-desc">專門處理威脅情報和攻擊分析</div>
+                    </div>
+                </div>
+                
+                <div class="agent-option" data-agent="account_security">
+                    <input type="radio" name="agent" value="account_security">
+                    <span class="agent-icon">👤</span>
+                    <div class="agent-info">
+                        <div class="agent-name">帳號安全</div>
+                        <div class="agent-desc">專注於帳號風險評估</div>
+                    </div>
+                </div>
+                
+                <div class="agent-option" data-agent="network_monitoring">
+                    <input type="radio" name="agent" value="network_monitoring">
+                    <span class="agent-icon">🌐</span>
+                    <div class="agent-info">
+                        <div class="agent-name">網路監控</div>
+                        <div class="agent-desc">處理網路事件和故障診斷</div>
+                    </div>
+                </div>
+                
+                <div class="agent-option" data-agent="multi_agent">
+                    <input type="radio" name="agent" value="multi_agent">
+                    <span class="agent-icon">🔄</span>
+                    <div class="agent-info">
+                        <div class="agent-name">多Agent協作</div>
+                        <div class="agent-desc">綜合多個專家的分析結果</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>📊 快速查詢</h3>
+            <div class="quick-queries">
+                <button class="quick-query-btn" data-query="分析最近的釣魚攻擊趨勢">🎣 釣魚攻擊分析</button>
+                <button class="quick-query-btn" data-query="檢查異常登入行為">🔐 異常登入檢查</button>
+                <button class="quick-query-btn" data-query="網路設備故障診斷">🔧 設備故障診斷</button>
+                <button class="quick-query-btn" data-query="評估系統安全風險">📈 風險評估</button>
+            </div>
+        </div>
+
+        <!-- 聊天區域 -->
+        <div class="chat-container">
+            <div class="chat-header">
+                <h2 id="chatTitle">AI資訊安全助手</h2>
+                <div class="chat-status" id="chatStatus">選擇Agent並開始對話</div>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>正在載入...</p>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message assistant">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <div class="message-bubble">
+                            您好！我是AI資訊安全助手。我可以幫助您：<br><br>
+                            🔍 <strong>威脅分析</strong>：分析安全威脅和攻擊模式<br>
+                            👤 <strong>帳號安全</strong>：評估帳號風險和異常行為<br>
+                            🌐 <strong>網路監控</strong>：診斷網路問題和設備故障<br>
+                            🧠 <strong>智慧決策</strong>：提供專業的安全建議<br><br>
+                            請選擇適合的Agent或直接提出您的問題！
+                        </div>
+                        <div class="message-time" id="welcomeTime"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="typing-indicator" id="typingIndicator">
+                AI正在思考中...
+            </div>
+
+            <div class="chat-input">
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <textarea 
+                            id="messageInput" 
+                            placeholder="輸入您的安全問題或查詢..."
+                            rows="1"
+                        ></textarea>
+                    </div>
+                    <button id="sendButton" disabled>
+                        ➤
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ChatApp {
+            constructor() {
+                this.currentAgent = 'smart_router';
+                this.sessionId = null;
+                this.currentUser = null;
+                this.init();
+            }
+
+            async init() {
+                await this.checkAuth();
+                this.bindEvents();
+                this.updateWelcomeTime();
+                this.autoResizeTextarea();
+            }
+
+            async checkAuth() {
+                try {
+                    const response = await fetch('/auth/status');
+                    const data = await response.json();
+                    
+                    if (!data.authenticated) {
+                        // 未登入，重定向到登入頁面
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    
+                    this.currentUser = data.user;
+                    this.updateUserInfo(data.user);
+                    
+                    // 從localStorage取得session_id
+                    this.sessionId = localStorage.getItem('session_id');
+                    
+                } catch (error) {
+                    console.error('認證檢查失敗:', error);
+                    window.location.href = '/login.html';
+                }
+            }
+
+            updateUserInfo(user) {
+                const userInfo = document.getElementById('userInfo');
+                const userAvatar = document.getElementById('userAvatar');
+                const userName = document.getElementById('userName');
+                const userProvider = document.getElementById('userProvider');
+
+                userInfo.style.display = 'flex';
+                
+                if (user.avatar_url) {
+                    userAvatar.innerHTML = `<img src="${user.avatar_url}" alt="Avatar">`;
+                } else {
+                    userAvatar.textContent = user.name.charAt(0).toUpperCase();
+                }
+                
+                userName.textContent = user.name;
+                userProvider.textContent = `${user.provider.charAt(0).toUpperCase() + user.provider.slice(1)} 帳號`;
+            }
+
+            bindEvents() {
+                // Agent選擇
+                document.querySelectorAll('.agent-option').forEach(option => {
+                    option.addEventListener('click', () => {
+                        this.selectAgent(option.dataset.agent);
+                    });
+                });
+
+                // 快速查詢按鈕
+                document.querySelectorAll('.quick-query-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const query = btn.dataset.query;
+                        document.getElementById('messageInput').value = query;
+                        this.sendMessage();
+                    });
+                });
+
+                // 發送訊息
+                document.getElementById('sendButton').addEventListener('click', () => {
+                    this.sendMessage();
+                });
+
+                // Enter鍵發送
+                document.getElementById('messageInput').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+
+                // 輸入檢測
+                document.getElementById('messageInput').addEventListener('input', (e) => {
+                    const sendBtn = document.getElementById('sendButton');
+                    sendBtn.disabled = !e.target.value.trim();
+                });
+
+                // 登出按鈕
+                document.getElementById('logoutBtn').addEventListener('click', () => {
+                    this.logout();
+                });
+            }
+
+            selectAgent(agentType) {
+                this.currentAgent = agentType;
+                
+                // 更新UI
+                document.querySelectorAll('.agent-option').forEach(option => {
+                    option.classList.remove('active');
+                    option.querySelector('input[type="radio"]').checked = false;
+                });
+                
+                const selectedOption = document.querySelector(`[data-agent="${agentType}"]`);
+                selectedOption.classList.add('active');
+                selectedOption.querySelector('input[type="radio"]').checked = true;
+                
+                // 更新聊天標題
+                const agentNames = {
+                    'smart_router': '智慧路由Agent',
+                    'threat_analysis': '威脅分析Agent',
+                    'account_security': '帳號安全Agent',
+                    'network_monitoring': '網路監控Agent',
+                    'multi_agent': '多Agent協作'
+                };
+                
+                document.getElementById('chatTitle').textContent = agentNames[agentType];
+                document.getElementById('chatStatus').textContent = `已選擇 ${agentNames[agentType]}`;
+            }
+
+            async sendMessage() {
+                const input = document.getElementById('messageInput');
+                const message = input.value.trim();
+                
+                if (!message) return;
+                
+                // 清空輸入框
+                input.value = '';
+                document.getElementById('sendButton').disabled = true;
+                
+                // 添加用戶訊息到聊天
+                this.addMessage('user', message);
+                
+                // 顯示輸入指示器
+                this.showTypingIndicator();
+                
+                try {
+                    const response = await fetch('/api/rag/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.sessionId}`
+                        },
+                        body: JSON.stringify({
+                            query: message,
+                            agent: this.currentAgent,
+                            multi_agent: this.currentAgent === 'multi_agent',
+                            context: {
+                                user_id: this.currentUser?.id,
+                                session_id: this.sessionId
+                            }
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    // 添加AI回應
+                    this.addMessage('assistant', data.response, data.analysis);
+                    
+                } catch (error) {
+                    console.error('發送訊息失敗:', error);
+                    this.showError(`發送失敗: ${error.message}`);
+                    this.addMessage('assistant', '抱歉，處理您的請求時發生錯誤。請稍後再試。');
+                } finally {
+                    this.hideTypingIndicator();
+                }
+            }
+
+            addMessage(type, content, analysis = null) {
+                const messagesContainer = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}`;
+                
+                const avatar = type === 'user' ? 
+                    (this.currentUser?.avatar_url ? 
+                        `<img src="${this.currentUser.avatar_url}" alt="User">` : 
+                        this.currentUser?.name?.charAt(0).toUpperCase() || 'U') : 
+                    '🤖';
+                
+                let analysisHtml = '';
+                if (analysis) {
+                    const confidence = analysis.confidence || 0;
+                    analysisHtml = `
+                        <div class="analysis-result">
+                            <div class="confidence-score">
+                                <span>信心度:</span>
+                                <div class="confidence-bar">
+                                    <div class="confidence-fill" style="width: ${confidence}%"></div>
+                                </div>
+                                <span>${confidence}%</span>
+                            </div>
+                            ${analysis.risk_score ? `<div><strong>風險評分:</strong> ${analysis.risk_score}/10</div>` : ''}
+                            ${analysis.recommendations ? `<div><strong>建議:</strong> ${analysis.recommendations}</div>` : ''}
+                        </div>
+                    `;
+                }
+                
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">${avatar}</div>
+                    <div class="message-content">
+                        <div class="message-bubble">${content}</div>
+                        ${analysisHtml}
+                        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                `;
+                
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            showTypingIndicator() {
+                document.getElementById('typingIndicator').style.display = 'block';
+            }
+
+            hideTypingIndicator() {
+                document.getElementById('typingIndicator').style.display = 'none';
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('errorMessage');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+                
+                setTimeout(() => {
+                    errorDiv.style.display = 'none';
+                }, 5000);
+            }
+
+            async logout() {
+                try {
+                    const response = await fetch('/auth/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${this.sessionId}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        localStorage.removeItem('session_id');
+                        window.location.href = '/login.html';
+                    } else {
+                        throw new Error('登出失敗');
+                    }
+                } catch (error) {
+                    console.error('登出錯誤:', error);
+                    // 即使API失敗也清除本地狀態
+                    localStorage.removeItem('session_id');
+                    window.location.href = '/login.html';
+                }
+            }
+
+            updateWelcomeTime() {
+                document.getElementById('welcomeTime').textContent = new Date().toLocaleTimeString();
+            }
+
+            autoResizeTextarea() {
+                const textarea = document.getElementById('messageInput');
+                textarea.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                });
+            }
+        }
+
+        // 初始化應用
+        document.addEventListener('DOMContentLoaded', () => {
+            new ChatApp();
+        });
+    </script>
+</body>
+</html>
+
