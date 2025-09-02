@@ -624,21 +624,20 @@
 
             async checkAuth() {
                 try {
-                    const response = await fetch('/auth/status');
-                    const data = await response.json();
+                    // 為了預覽靜態網頁，先註解掉後端檢查，直接設定測試用戶資料
+                    // const response = await fetch('/auth/status');
+                    // const data = await response.json();
+                    // if (!data.authenticated) {
+                    //     window.location.href = '/login.html';
+                    //     return;
+                    // }
+                    // this.currentUser = data.user;
+                    // this.sessionId = localStorage.getItem('session_id');
                     
-                    if (!data.authenticated) {
-                        // 未登入，重定向到登入頁面
-                        window.location.href = '/login.html';
-                        return;
-                    }
-                    
-                    this.currentUser = data.user;
-                    this.updateUserInfo(data.user);
-                    
-                    // 從localStorage取得session_id
-                    this.sessionId = localStorage.getItem('session_id');
-                    
+                    // 模擬用戶資料
+                    this.currentUser = { name: '測試用戶', provider: 'local', avatar_url: '' };
+                    this.sessionId = 'test_session';
+                    this.updateUserInfo(this.currentUser);
                 } catch (error) {
                     console.error('認證檢查失敗:', error);
                     window.location.href = '/login.html';
@@ -664,14 +663,12 @@
             }
 
             bindEvents() {
-                // Agent選擇
                 document.querySelectorAll('.agent-option').forEach(option => {
                     option.addEventListener('click', () => {
                         this.selectAgent(option.dataset.agent);
                     });
                 });
 
-                // 快速查詢按鈕
                 document.querySelectorAll('.quick-query-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
                         const query = btn.dataset.query;
@@ -680,12 +677,10 @@
                     });
                 });
 
-                // 發送訊息
                 document.getElementById('sendButton').addEventListener('click', () => {
                     this.sendMessage();
                 });
 
-                // Enter鍵發送
                 document.getElementById('messageInput').addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -693,13 +688,11 @@
                     }
                 });
 
-                // 輸入檢測
                 document.getElementById('messageInput').addEventListener('input', (e) => {
                     const sendBtn = document.getElementById('sendButton');
                     sendBtn.disabled = !e.target.value.trim();
                 });
 
-                // 登出按鈕
                 document.getElementById('logoutBtn').addEventListener('click', () => {
                     this.logout();
                 });
@@ -708,7 +701,6 @@
             selectAgent(agentType) {
                 this.currentAgent = agentType;
                 
-                // 更新UI
                 document.querySelectorAll('.agent-option').forEach(option => {
                     option.classList.remove('active');
                     option.querySelector('input[type="radio"]').checked = false;
@@ -718,7 +710,6 @@
                 selectedOption.classList.add('active');
                 selectedOption.querySelector('input[type="radio"]').checked = true;
                 
-                // 更新聊天標題
                 const agentNames = {
                     'smart_router': '智慧路由Agent',
                     'threat_analysis': '威脅分析Agent',
@@ -737,50 +728,51 @@
                 
                 if (!message) return;
                 
-                // 清空輸入框
                 input.value = '';
                 document.getElementById('sendButton').disabled = true;
                 
-                // 添加用戶訊息到聊天
                 this.addMessage('user', message);
-                
-                // 顯示輸入指示器
                 this.showTypingIndicator();
                 
-                try {
-                    const response = await fetch('/api/rag/chat', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${this.sessionId}`
-                        },
-                        body: JSON.stringify({
-                            query: message,
-                            agent: this.currentAgent,
-                            multi_agent: this.currentAgent === 'multi_agent',
-                            context: {
-                                user_id: this.currentUser?.id,
-                                session_id: this.sessionId
-                            }
-                        })
-                    });
+                // 為了預覽靜態網頁，先註解掉後端 API 呼叫，改以模擬回應
+                // try {
+                //     const response = await fetch('/api/rag/chat', {
+                //         method: 'POST',
+                //         headers: {
+                //             'Content-Type': 'application/json',
+                //             'Authorization': `Bearer ${this.sessionId}`
+                //         },
+                //         body: JSON.stringify({
+                //             query: message,
+                //             agent: this.currentAgent,
+                //             multi_agent: this.currentAgent === 'multi_agent',
+                //             context: {
+                //                 user_id: this.currentUser?.id,
+                //                 session_id: this.sessionId
+                //             }
+                //         })
+                //     });
                     
-                    const data = await response.json();
+                //     const data = await response.json();
                     
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
+                //     if (data.error) {
+                //         throw new Error(data.error);
+                //     }
                     
-                    // 添加AI回應
-                    this.addMessage('assistant', data.response, data.analysis);
-                    
-                } catch (error) {
-                    console.error('發送訊息失敗:', error);
-                    this.showError(`發送失敗: ${error.message}`);
-                    this.addMessage('assistant', '抱歉，處理您的請求時發生錯誤。請稍後再試。');
-                } finally {
+                //     this.addMessage('assistant', data.response, data.analysis);
+                // } catch (error) {
+                //     console.error('發送訊息失敗:', error);
+                //     this.showError(`發送失敗: ${error.message}`);
+                //     this.addMessage('assistant', '抱歉，處理您的請求時發生錯誤。請稍後再試。');
+                // } finally {
+                //     this.hideTypingIndicator();
+                // }
+                
+                // 模擬回應
+                setTimeout(() => {
+                    this.addMessage('assistant', '這是模擬的回應。');
                     this.hideTypingIndicator();
-                }
+                }, 1000);
             }
 
             addMessage(type, content, analysis = null) {
@@ -844,26 +836,27 @@
             }
 
             async logout() {
-                try {
-                    const response = await fetch('/auth/logout', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${this.sessionId}`
-                        }
-                    });
-                    
-                    if (response.ok) {
-                        localStorage.removeItem('session_id');
-                        window.location.href = '/login.html';
-                    } else {
-                        throw new Error('登出失敗');
-                    }
-                } catch (error) {
-                    console.error('登出錯誤:', error);
-                    // 即使API失敗也清除本地狀態
-                    localStorage.removeItem('session_id');
-                    window.location.href = '/login.html';
-                }
+                // 為了預覽靜態網頁，先註解掉後端登出邏輯
+                // try {
+                //     const response = await fetch('/auth/logout', {
+                //         method: 'POST',
+                //         headers: {
+                //             'Authorization': `Bearer ${this.sessionId}`
+                //         }
+                //     });
+                //     if (response.ok) {
+                //         localStorage.removeItem('session_id');
+                //         window.location.href = '/login.html';
+                //     } else {
+                //         throw new Error('登出失敗');
+                //     }
+                // } catch (error) {
+                //     console.error('登出錯誤:', error);
+                //     localStorage.removeItem('session_id');
+                //     window.location.href = '/login.html';
+                // }
+                // 模擬登出
+                alert('已模擬登出');
             }
 
             updateWelcomeTime() {
