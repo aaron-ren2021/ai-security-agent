@@ -7,10 +7,10 @@ import os
 import json
 import hashlib
 from typing import List, Dict, Any, Optional, Tuple
-import chromadb
-from chromadb.config import Settings
+# import chromadb  # 暫時註解掉
+# from chromadb.config import Settings  # 暫時註解掉
 import openai
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer  # 暫時註解掉
 import numpy as np
 from datetime import datetime
 
@@ -25,17 +25,18 @@ class VectorizationService:
         初始化向量化服務
         
         Args:
-            chroma_persist_directory: ChromaDB持久化目錄
+            chroma_persist_directory: ChromaDB持久化目錄 (暫時不使用)
             openai_api_key: OpenAI API金鑰
             openai_api_base: OpenAI API基礎URL
         """
         self.chroma_persist_directory = chroma_persist_directory
         
-        # 初始化ChromaDB客戶端
-        self.chroma_client = chromadb.PersistentClient(
-            path=chroma_persist_directory,
-            settings=Settings(anonymized_telemetry=False)
-        )
+        # 初始化ChromaDB客戶端 (暫時註解掉)
+        # self.chroma_client = chromadb.PersistentClient(
+        #     path=chroma_persist_directory,
+        #     settings=Settings(anonymized_telemetry=False)
+        # )
+        self.chroma_client = None  # 暫時設為 None
         
         # 設定OpenAI客戶端
         if openai_api_key:
@@ -43,28 +44,32 @@ class VectorizationService:
         if openai_api_base:
             openai.api_base = openai_api_base
             
-        # 初始化本地embedding模型作為備用
-        self.local_model = SentenceTransformer('all-MiniLM-L6-v2')
+        # 初始化本地embedding模型作為備用 (暫時註解掉)
+        # self.local_model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.local_model = None  # 暫時設為 None
         
-        # 建立知識庫集合
-        self._initialize_collections()
+        # 建立知識庫集合 (暫時註解掉)
+        # self._initialize_collections()
+        self.collections = None
     
     def _initialize_collections(self):
-        """初始化ChromaDB集合"""
-        self.collections = {
-            'security_threats': self._get_or_create_collection('security_threats'),
-            'account_rules': self._get_or_create_collection('account_rules'),
-            'network_knowledge': self._get_or_create_collection('network_knowledge'),
-            'incident_cases': self._get_or_create_collection('incident_cases'),
-            'policies': self._get_or_create_collection('policies')
-        }
+        """初始化ChromaDB集合 (暫時停用)"""
+        # self.collections = {
+        #     'security_threats': self._get_or_create_collection('security_threats'),
+        #     'account_rules': self._get_or_create_collection('account_rules'),
+        #     'network_knowledge': self._get_or_create_collection('network_knowledge'),
+        #     'incident_cases': self._get_or_create_collection('incident_cases'),
+        #     'policies': self._get_or_create_collection('policies')
+        # }
+        pass
     
     def _get_or_create_collection(self, name: str):
-        """取得或建立集合"""
-        try:
-            return self.chroma_client.get_collection(name=name)
-        except:
-            return self.chroma_client.create_collection(name=name)
+        """取得或建立集合 (暫時停用)"""
+        # try:
+        #     return self.chroma_client.get_collection(name=name)
+        # except:
+        #     return self.chroma_client.create_collection(name=name)
+        return None
     
     def get_embedding_openai(self, text: str, model: str = "text-embedding-ada-002") -> List[float]:
         """
@@ -90,7 +95,7 @@ class VectorizationService:
     
     def get_embedding_local(self, text: str) -> List[float]:
         """
-        使用本地模型取得文字向量
+        使用本地模型取得文字向量 (暫時停用)
         
         Args:
             text: 要向量化的文字
@@ -98,6 +103,11 @@ class VectorizationService:
         Returns:
             向量列表
         """
+        # 暫時返回假的 embedding，因為沒有安裝 sentence-transformers
+        if self.local_model is None:
+            print("Warning: Local embedding model not available, returning dummy embedding")
+            return [0.0] * 384  # 返回一個假的 384 維向量
+        
         embedding = self.local_model.encode(text)
         return embedding.tolist()
     

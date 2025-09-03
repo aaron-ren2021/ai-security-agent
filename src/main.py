@@ -6,8 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from flask import Flask, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
-from src.models.user import db
-from src.routes.user import user_bp
+from src.models.auth import db
 from src.routes.rag_api import rag_bp
 from src.routes.auth_api import auth_bp
 
@@ -23,12 +22,11 @@ app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'asdf#FGSgvasgf$5$WGT')
 CORS(app, origins="*", allow_headers="*", methods="*")
 
 # 註冊Blueprint
-app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(rag_bp, url_prefix='/api/rag')
 app.register_blueprint(auth_bp, url_prefix='/auth')
 
-# uncomment if you need to use database
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}"
+# 簡化的資料庫配置 - 使用專案根目錄的 SQLite
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 with app.app_context():
