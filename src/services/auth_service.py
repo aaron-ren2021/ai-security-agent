@@ -18,6 +18,38 @@ class AuthService:
     def __init__(self):
         self.oauth_service = OAuthService()
     
+    def auto_cleanup_expired(self):
+        """自動清理過期的會話和狀態"""
+        try:
+            # 清理過期的用戶會話
+            expired_sessions = UserSession.query.filter(
+                UserSession.expires_at < datetime.utcnow()
+            ).all()
+            
+            session_count = len(expired_sessions)
+            for session in expired_sessions:
+                db.session.delete(session)
+            
+            # 清理過期的 OAuth 狀態
+            expired_states = OAuthState.query.filter(
+                OAuthState.expires_at < datetime.utcnow()
+            ).all()
+            
+            state_count = len(expired_states)
+            for state in expired_states:
+                db.session.delete(state)
+            
+            # 提交變更
+            db.session.commit()
+            
+            print(f"[AuthService] Auto cleanup completed: {session_count} sessions, {state_count} states")
+            return {'sessions_cleaned': session_count, 'states_cleaned': state_count}
+            
+        except Exception as e:
+            print(f"[AuthService] Auto cleanup error: {str(e)}")
+            db.session.rollback()
+            return {'error': str(e)}
+    
     def create_or_update_user(self, provider: str, user_info: Dict) -> Optional[User]:
         """
         建立或更新用戶（優化資料庫操作）

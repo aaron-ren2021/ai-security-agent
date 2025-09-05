@@ -94,10 +94,168 @@
             cursor: pointer;
             font-size: 14px;
             transition: background 0.3s ease;
+            margin-left: 10px;
         }
 
         .logout-btn:hover {
             background: #c82333;
+        }
+
+        .admin-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s ease;
+            margin-left: 10px;
+        }
+
+        .admin-btn:hover {
+            background: #218838;
+        }
+
+        .admin-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .admin-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .admin-header h2 {
+            color: #333;
+            margin: 0;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px 10px;
+            color: #666;
+            border-radius: 5px;
+        }
+
+        .close-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .admin-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .admin-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .action-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+
+        .action-btn:hover {
+            background: #0056b3;
+        }
+
+        .action-btn.danger {
+            background: #dc3545;
+        }
+
+        .action-btn.danger:hover {
+            background: #c82333;
+        }
+
+        .session-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .session-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .session-item:last-child {
+            border-bottom: none;
+        }
+
+        .session-info {
+            flex: 1;
+        }
+
+        .session-current {
+            background: #e8f5e8;
+            border-left: 4px solid #28a745;
         }
 
         /* 主要內容區域 */
@@ -489,7 +647,8 @@
                 <div class="user-name" id="userName">aaron-ren2021</div>
                 <div class="user-provider" id="userProvider">GitHub 帳號</div>
             </div>
-                        <button id="logoutBtn" onclick="window.chatApp.logout()">登出</button>
+            <button id="adminBtn" class="admin-btn" onclick="window.chatApp.showAdminPanel()" style="display: none;">管理</button>
+            <button id="logoutBtn" class="logout-btn" onclick="window.chatApp.logout()">登出</button>
         </div>
     </nav>
 
@@ -1144,7 +1303,205 @@
                 userAvatar.textContent = user.name.charAt(0).toUpperCase();
             }
         }
+
+        // 管理員功能
+        window.chatApp.showAdminPanel = function() {
+            document.getElementById('adminPanel').style.display = 'flex';
+            this.refreshStats();
+            this.refreshSessions();
+        };
+
+        window.chatApp.hideAdminPanel = function() {
+            document.getElementById('adminPanel').style.display = 'none';
+        };
+
+        window.chatApp.refreshStats = async function() {
+            try {
+                const response = await fetch('/auth/admin/stats', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const stats = await response.json();
+                    this.displayStats(stats);
+                } else {
+                    console.error('Failed to fetch stats');
+                }
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+            }
+        };
+
+        window.chatApp.displayStats = function(stats) {
+            const statsContainer = document.getElementById('adminStats');
+            statsContainer.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${stats.total_users || 0}</div>
+                    <div class="stat-label">總用戶數</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.active_sessions || 0}</div>
+                    <div class="stat-label">活躍會話</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.expired_sessions || 0}</div>
+                    <div class="stat-label">過期會話</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.expired_oauth_states || 0}</div>
+                    <div class="stat-label">過期狀態</div>
+                </div>
+            `;
+        };
+
+        window.chatApp.refreshSessions = async function() {
+            try {
+                const response = await fetch('/auth/admin/sessions/all', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.displaySessions(data.sessions);
+                } else {
+                    console.error('Failed to fetch sessions');
+                }
+            } catch (error) {
+                console.error('Error fetching sessions:', error);
+            }
+        };
+
+        window.chatApp.displaySessions = function(sessions) {
+            const sessionsContainer = document.getElementById('sessionsList');
+            if (!sessions || sessions.length === 0) {
+                sessionsContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">沒有活躍會話</div>';
+                return;
+            }
+
+            sessionsContainer.innerHTML = sessions.map(session => `
+                <div class="session-item ${session.is_current ? 'session-current' : ''}">
+                    <div class="session-info">
+                        <div><strong>${session.user_info.name}</strong> (${session.user_info.provider})</div>
+                        <div style="font-size: 12px; color: #666;">
+                            ID: ${session.session_id.substring(0, 8)}... | 
+                            最後存取: ${new Date(session.last_accessed).toLocaleString('zh-TW')}
+                            ${session.is_current ? ' | 當前會話' : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        window.chatApp.performCleanup = async function() {
+            if (!confirm('確定要清理過期的會話和狀態嗎？')) return;
+
+            try {
+                const response = await fetch('/auth/admin/cleanup', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`清理完成！清理了 ${result.total_cleaned} 個項目`);
+                    this.refreshStats();
+                    this.refreshSessions();
+                } else {
+                    alert('清理失敗');
+                }
+            } catch (error) {
+                console.error('Error performing cleanup:', error);
+                alert('清理時發生錯誤');
+            }
+        };
+
+        window.chatApp.autoCleanup = async function() {
+            try {
+                const response = await fetch('/auth/cleanup/auto', {
+                    method: 'POST',
+                    headers: {
+                        'X-Auto-Cleanup-Token': 'internal-cleanup-2024'
+                    }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`自動清理完成！清理了 ${result.total_cleaned} 個項目`);
+                    this.refreshStats();
+                    this.refreshSessions();
+                } else {
+                    alert('自動清理失敗');
+                }
+            } catch (error) {
+                console.error('Error performing auto cleanup:', error);
+                alert('自動清理時發生錯誤');
+            }
+        };
+
+        // 檢查管理員權限並顯示按鈕
+        window.chatApp.checkAdminAccess = async function() {
+            try {
+                const response = await fetch('/auth/admin/stats', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    document.getElementById('adminBtn').style.display = 'inline-block';
+                }
+            } catch (error) {
+                // 隱藏管理員按鈕
+                document.getElementById('adminBtn').style.display = 'none';
+            }
+        };
+
+        // 在用戶資訊載入後檢查管理員權限
+        const originalUpdateUserInfo = window.chatApp.updateUserInfo;
+        window.chatApp.updateUserInfo = function(user) {
+            originalUpdateUserInfo.call(this, user);
+            this.checkAdminAccess();
+        };
     </script>
+
+    <!-- 管理員面板 -->
+    <div id="adminPanel" class="admin-panel">
+        <div class="admin-content">
+            <div class="admin-header">
+                <h2>🔧 系統管理面板</h2>
+                <button class="close-btn" onclick="window.chatApp.hideAdminPanel()">✕</button>
+            </div>
+
+            <div class="admin-section">
+                <h3>📊 系統統計</h3>
+                <div id="adminStats" class="stats-grid">
+                    <!-- 統計卡片將由 JavaScript 填充 -->
+                </div>
+                <button class="action-btn" onclick="window.chatApp.refreshStats()">重新整理統計</button>
+            </div>
+
+            <div class="admin-section">
+                <h3>🧹 清理管理</h3>
+                <p>清理過期的會話和 OAuth 狀態</p>
+                <button class="action-btn danger" onclick="window.chatApp.performCleanup()">執行清理</button>
+                <button class="action-btn" onclick="window.chatApp.autoCleanup()">自動清理</button>
+            </div>
+
+            <div class="admin-section">
+                <h3>👥 活躍會話</h3>
+                <div id="sessionsList" class="session-list">
+                    <!-- 會話列表將由 JavaScript 填充 -->
+                </div>
+                <button class="action-btn" onclick="window.chatApp.refreshSessions()">重新整理會話</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
 

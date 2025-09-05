@@ -20,6 +20,7 @@ dependencies = [
     "click==8.2.1",
     "coloredlogs==15.0.1",
     "distro==1.9.0",
+    "dotenv>=0.9.9",
     "durationpy==0.10",
     "filelock==3.19.1",
     "flask==3.1.1",

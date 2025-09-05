@@ -33,10 +33,12 @@ class OAuthConfig:
         'microsoft': {
             'client_id': os.getenv('MICROSOFT_CLIENT_ID'),
             'client_secret': os.getenv('MICROSOFT_CLIENT_SECRET'),
-            'authorize_url': 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-            'token_url': 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+            'tenant_id': os.getenv('MICROSOFT_TENANT_ID', 'common'),
+            'authorize_url': 'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize',
+            'token_url': 'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token',
             'userinfo_url': 'https://graph.microsoft.com/v1.0/me',
-            'scopes': ['openid', 'profile', 'email']
+            'scopes': ['openid', 'profile', 'email', 'User.Read'],
+            'scope_separator': ' '
         },
         'google': {
             'client_id': os.getenv('GOOGLE_CLIENT_ID'),
@@ -93,8 +95,15 @@ class OAuthService:
             return None
         
         if not redirect_uri:
-            redirect_base = os.getenv('REDIRECT_URI_BASE', self.base_url)
-            redirect_uri = f"{redirect_base}/auth/callback/{provider}"
+            # 強制使用正確的 localhost URL
+            redirect_uri = f"http://localhost:5002/auth/callback/{provider}"
+        
+        # 對於 Microsoft，動態構建 URL
+        if provider == 'microsoft':
+            tenant_id = config.get('tenant_id', 'common')
+            authorize_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize"
+        else:
+            authorize_url = config['authorize_url']
         
         # 直接構建授權URL
         params = {
@@ -105,10 +114,15 @@ class OAuthService:
             'response_type': 'code'
         }
         
-        authorization_url = f"{config['authorize_url']}?{urlencode(params)}"
+        # Microsoft特殊參數
+        if provider == 'microsoft':
+            params['response_mode'] = 'query'
+        
+        authorization_url = f"{authorize_url}?{urlencode(params)}"
         
         print(f"Generated authorization URL for {provider}: {authorization_url}")
         print(f"Using redirect URI: {redirect_uri}")
+        print(f"Using tenant_id: {config.get('tenant_id', 'common')}")
         
         return authorization_url
     
@@ -119,8 +133,15 @@ class OAuthService:
             return None
         
         if not redirect_uri:
-            redirect_base = os.getenv('REDIRECT_URI_BASE', self.base_url)
-            redirect_uri = f"{redirect_base}/auth/callback/{provider}"
+            # 強制使用正確的 localhost URL
+            redirect_uri = f"http://localhost:5002/auth/callback/{provider}"
+        
+        # 對於 Microsoft，動態構建 token URL
+        if provider == 'microsoft':
+            tenant_id = config.get('tenant_id', 'common')
+            token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+        else:
+            token_url = config['token_url']
         
         # 直接發送POST請求交換token
         data = {
@@ -131,18 +152,31 @@ class OAuthService:
             'grant_type': 'authorization_code'
         }
         
-        headers = {'Accept': 'application/json'}
+        # Microsoft 需要的額外參數
+        if provider == 'microsoft':
+            data['scope'] = ' '.join(config['scopes'])
+        
+        headers = {'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded'}
         
         try:
-            response = requests.post(config['token_url'], data=data, headers=headers)
+            print(f"Token exchange request for {provider}:")
+            print(f"URL: {token_url}")
+            print(f"Data: {data}")
+            
+            response = requests.post(token_url, data=data, headers=headers)
             response.raise_for_status()
             
+            token_data = response.json()
             print(f"Token exchange successful for {provider}")
             print(f"Used redirect URI: {redirect_uri}")
+            print(f"Token URL: {token_url}")
             
-            return response.json()
+            return token_data
         except Exception as e:
             print(f"Token exchange error for {provider}: {e}")
+            print(f"Token URL used: {token_url}")
+            print(f"Response status: {getattr(response, 'status_code', 'N/A')}")
+            print(f"Response text: {getattr(response, 'text', 'N/A')}")
             return None
     
     def get_user_info(self, provider: str, access_token: str) -> Optional[Dict]:
@@ -154,13 +188,16 @@ class OAuthService:
         headers = {'Authorization': f'Bearer {access_token}'}
         
         try:
+            print(f"Fetching user info for {provider} from {config['userinfo_url']}")
             response = requests.get(config['userinfo_url'], headers=headers)
             response.raise_for_status()
             user_data = response.json()
             
+            print(f"Raw user data for {provider}: {user_data}")
+            
             # 統一處理用戶資訊
             if provider == 'github':
-                return {
+                user_info = {
                     'provider_id': str(user_data.get('id')),
                     'email': user_data.get('email') or self._get_github_email(access_token),
                     'name': user_data.get('name') or user_data.get('login'),
@@ -168,22 +205,42 @@ class OAuthService:
                     'raw_data': user_data
                 }
             elif provider == 'microsoft':
-                return {
+                # Microsoft Graph API 回應處理
+                email = user_data.get('mail') or user_data.get('userPrincipalName') or user_data.get('preferredUsername')
+                name = user_data.get('displayName') or user_data.get('givenName', '') + ' ' + user_data.get('surname', '')
+                name = name.strip() if name else email.split('@')[0] if email else 'Unknown User'
+                
+                user_info = {
                     'provider_id': user_data.get('id'),
-                    'email': user_data.get('mail') or user_data.get('userPrincipalName'),
-                    'name': user_data.get('displayName'),
-                    'avatar_url': None,
+                    'email': email,
+                    'name': name,
+                    'avatar_url': None,  # Microsoft Graph 可能需要額外的API調用來取得頭像
                     'raw_data': user_data
                 }
             elif provider == 'google':
-                return {
+                user_info = {
                     'provider_id': user_data.get('id'),
                     'email': user_data.get('email'),
                     'name': user_data.get('name'),
                     'avatar_url': user_data.get('picture'),
                     'raw_data': user_data
                 }
+            else:
+                return None
             
+            print(f"Processed user info for {provider}: {user_info}")
+            
+            # 驗證必要欄位
+            if not user_info.get('provider_id') or not user_info.get('email'):
+                print(f"Missing required fields for {provider}: provider_id={user_info.get('provider_id')}, email={user_info.get('email')}")
+                return None
+            
+            return user_info
+            
+        except Exception as e:
+            print(f"Error fetching user info for {provider}: {e}")
+            print(f"Response status: {getattr(response, 'status_code', 'N/A')}")
+            print(f"Response text: {getattr(response, 'text', 'N/A')}")
             return None
         except Exception as e:
             print(f"Error fetching user info from {provider}: {e}")

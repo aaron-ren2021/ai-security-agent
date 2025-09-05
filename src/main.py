@@ -74,21 +74,37 @@ def test_login():
     )
     return response
 
+# 顯示登入頁面
+@app.route('/login')
+def login_page():
+    """顯示自訂的登入頁面"""
+    from flask import send_from_directory
+    return send_from_directory(app.static_folder, 'login.html')
+
+# catch-all 路由，用於前端 SPA 或靜態檔案
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
+    """根路由：檢查認證狀態決定顯示登入頁或主頁"""
     static_folder_path = app.static_folder
-    if static_folder_path is None:
-            return "Static folder not configured", 404
-
-    if path != "" and os.path.exists(os.path.join(static_folder_path, path)):
+    
+    # 檢查是否為靜態檔案請求
+    if path != '' and os.path.exists(os.path.join(static_folder_path, path)):
         return send_from_directory(static_folder_path, path)
-    else:
-        index_path = os.path.join(static_folder_path, 'index.html')
-        if os.path.exists(index_path):
+    
+    # 對於根路徑或應用程式路徑，檢查認證狀態
+    if path == '' or path in ['index', 'index.html', 'app', 'dashboard']:
+        # 檢查是否已認證
+        session_id = request.cookies.get('session_id')
+        if session_id:
+            # 已認證，顯示主頁
             return send_from_directory(static_folder_path, 'index.html')
         else:
-            return "index.html not found", 404
+            # 未認證，顯示登入頁
+            return send_from_directory(static_folder_path, 'login.html')
+    
+    # 其他路徑回傳 SPA 頁面
+    return send_from_directory(static_folder_path, 'index.html')
 
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ OAuth認證API路由
 處理所有認證相關的API端點
 """
 
-from flask import Blueprint, request, jsonify, redirect, url_for, make_response, current_app
+from flask import Blueprint, request, jsonify, redirect, url_for, make_response, current_app, g
 from urllib.parse import urlencode, parse_qs
 import secrets
 from datetime import datetime
@@ -106,10 +106,24 @@ def oauth_callback(provider):
         # 檢查是否有錯誤
         if error:
             error_description = request.args.get('error_description', 'Unknown error')
+            error_uri = request.args.get('error_uri', '')
+            
+            # Microsoft 特殊錯誤處理
+            if provider == 'microsoft':
+                if 'AADSTS' in error_description:
+                    print(f"Microsoft Azure AD error: {error} - {error_description}")
+                    if 'AADSTS700016' in error_description:
+                        error_description = 'Application not found in tenant directory. Please check Microsoft app configuration.'
+                    elif 'AADSTS50011' in error_description:
+                        error_description = 'Invalid redirect URI. Please check Microsoft app registration.'
+                    elif 'AADSTS16000' in error_description:
+                        error_description = 'User account not found in tenant.'
+            
             if wants_json:
                 return jsonify({
                     'error': f'OAuth error: {error}',
-                    'description': error_description
+                    'description': error_description,
+                    'error_uri': error_uri
                 }), 400
             else:
                 return redirect(f'/?error={error}&description={error_description}')
@@ -190,8 +204,124 @@ def oauth_callback(provider):
             )
             return response
         else:
-            # 瀏覽器請求，設定 Cookie 並重導向
-            response = make_response(redirect(redirect_url))
+            # 瀏覽器請求，返回成功頁面而不是直接重導向
+            success_html = f'''
+            <!DOCTYPE html>
+            <html lang="zh-TW">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>登入成功 - AI資訊安全RAG Chat機器人</title>
+                <style>
+                    body {{
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        min-height: 100vh;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 0;
+                    }}
+                    .success-container {{
+                        background: rgba(255, 255, 255, 0.95);
+                        backdrop-filter: blur(10px);
+                        border-radius: 20px;
+                        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+                        padding: 40px;
+                        text-align: center;
+                        max-width: 500px;
+                        width: 90%;
+                    }}
+                    .success-icon {{
+                        width: 80px;
+                        height: 80px;
+                        background: linear-gradient(135deg, #28a745, #20c997);
+                        border-radius: 50%;
+                        margin: 0 auto 20px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 32px;
+                        color: white;
+                        animation: bounce 1s ease-out;
+                    }}
+                    @keyframes bounce {{
+                        0%, 20%, 50%, 80%, 100% {{ transform: translateY(0); }}
+                        40% {{ transform: translateY(-10px); }}
+                        60% {{ transform: translateY(-5px); }}
+                    }}
+                    h1 {{
+                        color: #28a745;
+                        margin-bottom: 15px;
+                        font-size: 24px;
+                    }}
+                    .user-info {{
+                        background: #f8f9fa;
+                        padding: 20px;
+                        border-radius: 10px;
+                        margin: 20px 0;
+                        text-align: left;
+                    }}
+                    .redirect-info {{
+                        color: #666;
+                        margin: 20px 0;
+                        font-size: 14px;
+                    }}
+                    .countdown {{
+                        font-weight: bold;
+                        color: #667eea;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="success-container">
+                    <div class="success-icon">✅</div>
+                    <h1>登入成功！</h1>
+                    <p>歡迎使用 AI資訊安全RAG Chat機器人</p>
+                    
+                    <div class="user-info">
+                        <strong>登入資訊：</strong><br>
+                        用戶名：{user.name}<br>
+                        Email：{user.email}<br>
+                        提供商：{user.provider.title()}
+                    </div>
+                    
+                    <div class="redirect-info">
+                        <p>正在跳轉到主頁面...</p>
+                        <p class="countdown">3 秒後自動跳轉</p>
+                    </div>
+                </div>
+
+                <script>
+                    // 設定會話Cookie
+                    document.cookie = "session_id={session_id}; path=/; max-age=86400; SameSite=Lax";
+                    
+                    // 倒數計時跳轉
+                    let countdown = 3;
+                    const countdownElement = document.querySelector('.countdown');
+                    
+                    const timer = setInterval(() => {{
+                        countdown--;
+                        if (countdown > 0) {{
+                            countdownElement.textContent = `${{countdown}} 秒後自動跳轉`;
+                        }} else {{
+                            countdownElement.textContent = '正在跳轉...';
+                            clearInterval(timer);
+                            window.location.href = '{redirect_url}';
+                        }}
+                    }}, 1000);
+                    
+                    // 點擊頁面也可以立即跳轉
+                    document.addEventListener('click', () => {{
+                        clearInterval(timer);
+                        window.location.href = '{redirect_url}';
+                    }});
+                </script>
+            </body>
+            </html>
+            '''
+            
+            response = make_response(success_html)
             response.set_cookie(
                 'session_id',
                 session_id,
@@ -203,10 +333,115 @@ def oauth_callback(provider):
             return response
         
     except Exception as e:
+        current_app.logger.error(f"OAuth callback error for {provider}: {str(e)}")
         if wants_json:
             return jsonify({'error': f'OAuth callback failed: {str(e)}'}), 500
         else:
-            return redirect(f'/?error=callback_failed&message={str(e)}')
+            # 返回錯誤頁面而不是簡單重導向
+            error_html = f'''
+            <!DOCTYPE html>
+            <html lang="zh-TW">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>登入失敗 - AI資訊安全RAG Chat機器人</title>
+                <style>
+                    body {{
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        min-height: 100vh;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin: 0;
+                    }}
+                    .error-container {{
+                        background: rgba(255, 255, 255, 0.95);
+                        backdrop-filter: blur(10px);
+                        border-radius: 20px;
+                        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+                        padding: 40px;
+                        text-align: center;
+                        max-width: 500px;
+                        width: 90%;
+                    }}
+                    .error-icon {{
+                        width: 80px;
+                        height: 80px;
+                        background: linear-gradient(135deg, #dc3545, #e74c3c);
+                        border-radius: 50%;
+                        margin: 0 auto 20px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 32px;
+                        color: white;
+                    }}
+                    h1 {{
+                        color: #dc3545;
+                        margin-bottom: 15px;
+                        font-size: 24px;
+                    }}
+                    .error-details {{
+                        background: #f8f9fa;
+                        padding: 20px;
+                        border-radius: 10px;
+                        margin: 20px 0;
+                        text-align: left;
+                        border-left: 4px solid #dc3545;
+                    }}
+                    .retry-btn {{
+                        background: #667eea;
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 16px;
+                        margin: 10px;
+                        text-decoration: none;
+                        display: inline-block;
+                    }}
+                    .retry-btn:hover {{
+                        background: #5a67d8;
+                    }}
+                    .home-btn {{
+                        background: #28a745;
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 16px;
+                        margin: 10px;
+                        text-decoration: none;
+                        display: inline-block;
+                    }}
+                    .home-btn:hover {{
+                        background: #218838;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="error-container">
+                    <div class="error-icon">❌</div>
+                    <h1>登入失敗</h1>
+                    <p>很抱歉，{provider.title()} 登入過程中發生錯誤</p>
+                    
+                    <div class="error-details">
+                        <strong>錯誤詳情：</strong><br>
+                        {str(e)}<br><br>
+                        <strong>提供商：</strong> {provider.title()}<br>
+                        <strong>時間：</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                    </div>
+                    
+                    <a href="/login.html" class="retry-btn">🔄 重試登入</a>
+                    <a href="/" class="home-btn">🏠 返回首頁</a>
+                </div>
+            </body>
+            </html>
+            '''
+            return make_response(error_html), 500
 
 
 @auth_bp.route('/logout', methods=['POST'])
@@ -305,17 +540,15 @@ def get_user_sessions():
     """取得用戶的所有會話"""
     try:
         user = get_current_user()
+        current_session_id = getattr(g, 'session_id', None)
         
         from src.models.auth import UserSession
+        # 取得所有有效會話
         sessions = UserSession.query.filter_by(user_id=user.id).filter(
             UserSession.expires_at > datetime.utcnow()
-        ).all()
+        ).order_by(UserSession.last_accessed.desc()).all()
         
         session_list = []
-        current_session_id = request.headers.get('Authorization')
-        if current_session_id and current_session_id.startswith('Bearer '):
-            current_session_id = current_session_id[7:]
-        
         for sess in sessions:
             session_data = sess.to_dict()
             session_data['is_current'] = sess.session_id == current_session_id
@@ -323,7 +556,8 @@ def get_user_sessions():
         
         return jsonify({
             'sessions': session_list,
-            'total': len(session_list)
+            'total': len(session_list),
+            'current_session_id': current_session_id
         })
         
     except Exception as e:
@@ -439,15 +673,184 @@ def get_providers():
         return jsonify({'error': f'Failed to get providers: {str(e)}'}), 500
 
 
+@auth_bp.route('/cleanup/auto', methods=['POST'])
+def auto_cleanup():
+    """自動清理過期會話和狀態（系統端點）"""
+    try:
+        # 允許從內部或有特定標頭的請求調用
+        auth_header = request.headers.get('X-Auto-Cleanup-Token')
+        if auth_header != 'internal-cleanup-2024':
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        # 執行清理
+        result = auth_service.auto_cleanup_expired()
+        
+        if 'error' in result:
+            return jsonify({'error': result['error']}), 500
+        
+        return jsonify({
+            'success': True,
+            'message': 'Auto cleanup completed',
+            'cleaned_sessions': result['sessions_cleaned'],
+            'cleaned_states': result['states_cleaned'],
+            'total_cleaned': result['sessions_cleaned'] + result['states_cleaned']
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Auto cleanup failed: {str(e)}'}), 500
+
+
+@auth_bp.route('/admin/cleanup', methods=['POST'])
+@require_auth
+def admin_cleanup():
+    """管理員清理過期會話和狀態"""
+    try:
+        user = get_current_user()
+        
+        # 檢查管理員權限
+        admin_users = ['aaron-ren2021']  # 管理員用戶名列表
+        admin_providers = ['microsoft', 'github']  # 允許的提供商
+        
+        if user.name not in admin_users and user.provider not in admin_providers:
+            return jsonify({'error': 'Access denied - Admin privileges required'}), 403
+        
+        # 清理過期會話
+        from src.models.auth import UserSession, OAuthState, db
+        
+        # 清理過期的用戶會話
+        expired_sessions = UserSession.query.filter(
+            UserSession.expires_at < datetime.utcnow()
+        ).all()
+        
+        session_count = len(expired_sessions)
+        for session in expired_sessions:
+            db.session.delete(session)
+        
+        # 清理過期的 OAuth 狀態
+        expired_states = OAuthState.query.filter(
+            OAuthState.expires_at < datetime.utcnow()
+        ).all()
+        
+        state_count = len(expired_states)
+        for state in expired_states:
+            db.session.delete(state)
+        
+        # 提交變更
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cleanup completed',
+            'cleaned_sessions': session_count,
+            'cleaned_states': state_count,
+            'total_cleaned': session_count + state_count
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Cleanup failed: {str(e)}'}), 500
+
+
+@auth_bp.route('/admin/sessions/all', methods=['GET'])
+@require_auth
+def admin_get_all_sessions():
+    """管理員查看所有用戶會話"""
+    try:
+        user = get_current_user()
+        
+        # 檢查管理員權限
+        admin_users = ['aaron-ren2021']
+        admin_providers = ['microsoft', 'github']
+        
+        if user.name not in admin_users and user.provider not in admin_providers:
+            return jsonify({'error': 'Access denied - Admin privileges required'}), 403
+        
+        from src.models.auth import UserSession, User
+        
+        # 取得所有有效會話，包含用戶資訊
+        sessions = db.session.query(UserSession, User).join(
+            User, UserSession.user_id == User.id
+        ).filter(
+            UserSession.expires_at > datetime.utcnow()
+        ).order_by(UserSession.last_accessed.desc()).all()
+        
+        session_list = []
+        for sess, sess_user in sessions:
+            session_data = sess.to_dict()
+            session_data['user_info'] = {
+                'id': sess_user.id,
+                'name': sess_user.name,
+                'email': sess_user.email,
+                'provider': sess_user.provider
+            }
+            session_list.append(session_data)
+        
+        return jsonify({
+            'sessions': session_list,
+            'total': len(session_list)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to get all sessions: {str(e)}'}), 500
+
+
+@auth_bp.route('/admin/stats', methods=['GET'])
+@require_auth
+def admin_get_stats():
+    """管理員取得系統統計"""
+    try:
+        user = get_current_user()
+        
+        # 檢查管理員權限
+        admin_users = ['aaron-ren2021']
+        admin_providers = ['microsoft', 'github']
+        
+        if user.name not in admin_users and user.provider not in admin_providers:
+            return jsonify({'error': 'Access denied - Admin privileges required'}), 403
+        
+        from src.models.auth import UserSession, OAuthState, User
+        
+        # 統計資料
+        total_users = User.query.count()
+        active_sessions = UserSession.query.filter(
+            UserSession.expires_at > datetime.utcnow()
+        ).count()
+        expired_sessions = UserSession.query.filter(
+            UserSession.expires_at <= datetime.utcnow()
+        ).count()
+        pending_states = OAuthState.query.filter(
+            OAuthState.expires_at > datetime.utcnow()
+        ).count()
+        expired_states = OAuthState.query.filter(
+            OAuthState.expires_at <= datetime.utcnow()
+        ).count()
+        
+        # 按提供商統計用戶
+        provider_stats = {}
+        providers = db.session.query(User.provider, db.func.count(User.id)).group_by(User.provider).all()
+        for provider, count in providers:
+            provider_stats[provider] = count
+        
+        return jsonify({
+            'total_users': total_users,
+            'active_sessions': active_sessions,
+            'expired_sessions': expired_sessions,
+            'pending_oauth_states': pending_states,
+            'expired_oauth_states': expired_states,
+            'provider_distribution': provider_stats,
+            'cleanup_recommended': expired_sessions > 0 or expired_states > 0
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to get stats: {str(e)}'}), 500
+
+
 @auth_bp.route('/stats', methods=['GET'])
 @require_auth
 def get_auth_stats():
     """取得認證統計（需要管理員權限）"""
     try:
-        # 這裡可以加入管理員權限檢查
         user = get_current_user()
         
-        # 簡單的管理員檢查（可以根據需要調整）
         # 允許特定用戶或所有認證用戶存取統計
         admin_users = ['aaron-ren2021']  # 管理員用戶名列表
         admin_providers = ['microsoft', 'github']  # 允許的提供商
@@ -456,12 +859,7 @@ def get_auth_stats():
             return jsonify({'error': 'Access denied'}), 403
         
         stats = auth_service.get_user_stats()
-        cleanup_stats = auth_service.cleanup_expired_data()
-        
-        return jsonify({
-            'user_stats': stats,
-            'cleanup_stats': cleanup_stats
-        })
+        return jsonify(stats)
         
     except Exception as e:
         return jsonify({'error': f'Failed to get stats: {str(e)}'}), 500
