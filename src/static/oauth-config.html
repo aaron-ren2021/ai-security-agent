@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth 配置檢查</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .config-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .provider {
+            border-left: 4px solid #007cba;
+            padding-left: 15px;
+            margin: 15px 0;
+        }
+        .configured {
+            border-left-color: #28a745;
+        }
+        .not-configured {
+            border-left-color: #dc3545;
+        }
+        .config-item {
+            margin: 8px 0;
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+        .masked {
+            background: #ffd700;
+            color: #000;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005a8c;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛡️ OAuth 配置檢查</h1>
+    
+    <div class="config-section">
+        <h2>當前URL信息</h2>
+        <div class="config-item">當前URL: <span id="currentUrl"></span></div>
+        <div class="config-item">主機名: <span id="hostname"></span></div>
+        <div class="config-item">協議: <span id="protocol"></span></div>
+        <div class="config-item">端口: <span id="port"></span></div>
+    </div>
+
+    <div class="config-section">
+        <h2>OAuth 提供商配置</h2>
+        <div id="providersConfig">載入中...</div>
+    </div>
+
+    <div class="config-section">
+        <h2>預期的重定向 URI</h2>
+        <div id="redirectUris">載入中...</div>
+    </div>
+
+    <div class="config-section">
+        <button onclick="checkConfig()">重新檢查配置</button>
+        <button onclick="testOAuth()">測試 OAuth 流程</button>
+        <a href="/login.html"><button>返回登入頁面</button></a>
+    </div>
+
+    <script>
+        function updateUrlInfo() {
+            document.getElementById('currentUrl').textContent = window.location.href;
+            document.getElementById('hostname').textContent = window.location.hostname;
+            document.getElementById('protocol').textContent = window.location.protocol;
+            document.getElementById('port').textContent = window.location.port || '(預設)';
+        }
+
+        async function checkConfig() {
+            try {
+                const response = await fetch('/auth/providers');
+                const data = await response.json();
+                
+                const providersDiv = document.getElementById('providersConfig');
+                const redirectDiv = document.getElementById('redirectUris');
+                
+                if (data.providers) {
+                    let providersHtml = '';
+                    let redirectsHtml = '';
+                    
+                    for (const [provider, config] of Object.entries(data.providers)) {
+                        const isConfigured = config.configured;
+                        const className = isConfigured ? 'configured' : 'not-configured';
+                        
+                        providersHtml += `
+                            <div class="provider ${className}">
+                                <h3>${provider.toUpperCase()}</h3>
+                                <div class="config-item">狀態: ${isConfigured ? '✅ 已配置' : '❌ 未配置'}</div>
+                                ${isConfigured ? `
+                                    <div class="config-item">Client ID: <span class="masked">${config.client_id ? config.client_id.substring(0, 8) + '...' : 'N/A'}</span></div>
+                                    <div class="config-item">Client Secret: <span class="masked">${config.client_secret ? '設置完成' : '未設置'}</span></div>
+                                ` : ''}
+                            </div>
+                        `;
+                        
+                        if (isConfigured) {
+                            const baseUrl = `${window.location.protocol}//${window.location.host}`;
+                            redirectsHtml += `
+                                <div class="config-item">
+                                    ${provider}: <strong>${baseUrl}/auth/callback/${provider}</strong>
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    providersDiv.innerHTML = providersHtml;
+                    redirectDiv.innerHTML = redirectsHtml || '<div class="config-item">沒有已配置的提供商</div>';
+                } else {
+                    providersDiv.innerHTML = '<div class="config-item">無法載入提供商配置</div>';
+                    redirectDiv.innerHTML = '<div class="config-item">無法載入重定向 URI</div>';
+                }
+                
+            } catch (error) {
+                console.error('配置檢查失敗:', error);
+                document.getElementById('providersConfig').innerHTML = 
+                    `<div class="config-item">錯誤: ${error.message}</div>`;
+            }
+        }
+
+        async function testOAuth() {
+            try {
+                const response = await fetch('/auth/login/github');
+                const data = await response.json();
+                
+                if (data.authorization_url) {
+                    alert('OAuth 配置正常！重定向 URI: ' + data.redirect_uri);
+                    console.log('OAuth 測試結果:', data);
+                } else {
+                    alert('OAuth 配置有問題: ' + (data.error || '未知錯誤'));
+                }
+            } catch (error) {
+                alert('OAuth 測試失敗: ' + error.message);
+            }
+        }
+
+        // 頁面載入時執行
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUrlInfo();
+            checkConfig();
+        });
+    </script>
+</body>
+</html>

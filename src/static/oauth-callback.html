@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth 回呼處理中...</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            max-width: 400px;
+            width: 90%;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .success {
+            color: #28a745;
+            margin: 20px 0;
+        }
+        .error {
+            color: #dc3545;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner" id="spinner"></div>
+        <h2 id="status">正在處理登入...</h2>
+        <p id="message">請稍候，正在完成 OAuth 認證流程</p>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // 檢查 URL 中的查詢參數
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const state = urlParams.get('state');
+        const error = urlParams.get('error');
+
+        async function handleOAuthCallback() {
+            const statusEl = document.getElementById('status');
+            const messageEl = document.getElementById('message');
+            const resultEl = document.getElementById('result');
+            const spinnerEl = document.getElementById('spinner');
+
+            try {
+                if (error) {
+                    throw new Error(`OAuth 錯誤: ${error}`);
+                }
+
+                if (!code || !state) {
+                    throw new Error('缺少必要的授權參數');
+                }
+
+                // 讀取當前 URL 路徑來判斷 provider
+                const pathParts = window.location.pathname.split('/');
+                const provider = pathParts[pathParts.length - 1]; // 取得最後一部分作為 provider
+
+                statusEl.textContent = '正在驗證授權...';
+                messageEl.textContent = `正在處理 ${provider} 授權回呼`;
+
+                // 發送請求到後端處理回呼
+                const response = await fetch(window.location.href, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // 成功處理
+                    spinnerEl.style.display = 'none';
+                    statusEl.textContent = '登入成功！';
+                    statusEl.className = 'success';
+                    messageEl.textContent = `歡迎，${data.user.name}！正在跳轉...`;
+                    
+                    resultEl.innerHTML = `
+                        <div class="success">
+                            <h3>✅ 認證成功</h3>
+                            <p><strong>用戶:</strong> ${data.user.name}</p>
+                            <p><strong>Email:</strong> ${data.user.email}</p>
+                            <p><strong>提供商:</strong> ${data.user.provider}</p>
+                        </div>
+                    `;
+
+                    // 儲存 session ID
+                    if (data.session_id) {
+                        localStorage.setItem('session_id', data.session_id);
+                    }
+
+                    // 延遲跳轉到主頁面
+                    setTimeout(() => {
+                        window.location.href = data.redirect_url || '/';
+                    }, 2000);
+
+                } else {
+                    throw new Error(data.error || '登入處理失敗');
+                }
+
+            } catch (error) {
+                // 錯誤處理
+                spinnerEl.style.display = 'none';
+                statusEl.textContent = '登入失敗';
+                statusEl.className = 'error';
+                messageEl.textContent = error.message;
+                
+                resultEl.innerHTML = `
+                    <div class="error">
+                        <h3>❌ 認證失敗</h3>
+                        <p>${error.message}</p>
+                        <button onclick="window.location.href='/'" style="
+                            margin-top: 15px;
+                            padding: 10px 20px;
+                            background: #667eea;
+                            color: white;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                        ">返回首頁</button>
+                    </div>
+                `;
+            }
+        }
+
+        // 頁面載入時執行
+        document.addEventListener('DOMContentLoaded', handleOAuthCallback);
+    </script>
+</body>
+</html>

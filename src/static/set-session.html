@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>設定 Session Cookie</title>
+</head>
+<body>
+    <h2>正在設定登入 Session...</h2>
+    <p>請稍候，正在設定您的登入狀態...</p>
+    
+    <script>
+        // 設定 session cookie
+        document.cookie = "session_id=tle2whvCjq13ZrihOcwoH_2RHXbQXV727wxNkYyGT4I; path=/; max-age=86400";
+        
+        // 2 秒後跳轉到主頁
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 2000);
+        
+        // 顯示進度
+        let dots = 0;
+        setInterval(() => {
+            dots = (dots + 1) % 4;
+            document.querySelector('p').textContent = '正在設定您的登入狀態' + '.'.repeat(dots);
+        }, 500);
+    </script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub OAuth 測試</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            margin: 10px;
+            background: #333;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background: #555;
+        }
+        .github {
+            background: #333;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+            color: #c62828;
+        }
+        .success {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+            color: #2e7d32;
+        }
+        pre {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐙 GitHub OAuth 測試頁面</h1>
+        
+        <div class="status">
+            <h3>📋 測試步驟：</h3>
+            <ol>
+                <li>確認 GitHub OAuth App 設定正確</li>
+                <li>點擊下方 "GitHub 登入測試" 按鈕</li>
+                <li>授權應用存取您的 GitHub 帳號</li>
+                <li>檢查是否成功返回並顯示用戶資訊</li>
+            </ol>
+        </div>
+
+        <div id="authInfo" class="status" style="display: none;"></div>
+
+        <h3>🔗 OAuth 端點測試：</h3>
+        
+        <button class="btn github" onclick="testGitHubLogin()">
+            🐙 GitHub 登入測試
+        </button>
+        
+        <button class="btn" onclick="checkAuthStatus()">
+            ✅ 檢查認證狀態
+        </button>
+        
+        <button class="btn" onclick="testProviders()">
+            🔍 檢查提供商
+        </button>
+
+        <h3>📊 API 回應：</h3>
+        <pre id="apiResponse">點擊上方按鈕測試 API...</pre>
+
+        <h3>📝 重要設定資訊：</h3>
+        <div class="status">
+            <p><strong>Client ID:</strong> Ov23liDJENPQkcVi1TIh</p>
+            <p><strong>回呼 URL:</strong> http://localhost:5002/auth/callback/github</p>
+            <p><strong>授權範圍:</strong> user:email, read:user</p>
+        </div>
+
+        <h3>🛠️ GitHub OAuth App 設定檢查清單：</h3>
+        <div class="status">
+            <input type="checkbox"> Application name: "AI資訊安全RAG Chat機器人"<br>
+            <input type="checkbox"> Homepage URL: "http://localhost:5002"<br>
+            <input type="checkbox"> Authorization callback URL: "http://localhost:5002/auth/callback/github"<br>
+            <input type="checkbox"> Client ID 已正確設定在 .env 檔案<br>
+            <input type="checkbox"> Client Secret 已正確設定在 .env 檔案
+        </div>
+    </div>
+
+    <script>
+        async function testGitHubLogin() {
+            try {
+                showStatus('正在取得 GitHub 授權 URL...', 'info');
+                
+                const response = await fetch('/auth/login/github');
+                const data = await response.json();
+                
+                if (data.authorization_url) {
+                    showApiResponse(data);
+                    showStatus('即將跳轉到 GitHub 授權頁面...', 'success');
+                    
+                    // 跳轉到 GitHub 授權頁面
+                    setTimeout(() => {
+                        window.location.href = data.authorization_url;
+                    }, 2000);
+                } else {
+                    showStatus('取得授權 URL 失敗', 'error');
+                    showApiResponse(data);
+                }
+            } catch (error) {
+                showStatus('請求失敗: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function checkAuthStatus() {
+            try {
+                showStatus('檢查認證狀態...', 'info');
+                
+                const response = await fetch('/auth/status');
+                const data = await response.json();
+                
+                showApiResponse(data);
+                
+                if (data.authenticated) {
+                    showStatus(`已登入: ${data.user.name} (${data.user.email})`, 'success');
+                } else {
+                    showStatus('未登入', 'info');
+                }
+            } catch (error) {
+                showStatus('檢查狀態失敗: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function testProviders() {
+            try {
+                showStatus('檢查 OAuth 提供商...', 'info');
+                
+                const response = await fetch('/auth/providers');
+                const data = await response.json();
+                
+                showApiResponse(data);
+                
+                const githubConfigured = data.providers?.github?.configured;
+                if (githubConfigured) {
+                    showStatus('GitHub OAuth 已正確配置 ✅', 'success');
+                } else {
+                    showStatus('GitHub OAuth 配置有問題 ❌', 'error');
+                }
+            } catch (error) {
+                showStatus('檢查提供商失敗: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        function showStatus(message, type) {
+            const authInfo = document.getElementById('authInfo');
+            authInfo.style.display = 'block';
+            authInfo.innerHTML = message;
+            authInfo.className = 'status ' + type;
+        }
+
+        function showApiResponse(data) {
+            document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+        }
+
+        // 檢查是否有 OAuth 回呼參數
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
+
+            if (error) {
+                showStatus(`OAuth 錯誤: ${error}`, 'error');
+            } else if (code && state) {
+                showStatus('收到 OAuth 回呼，正在處理...', 'info');
+                // 這裡通常會由您的應用處理，不需要額外動作
+                setTimeout(checkAuthStatus, 1000);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -483,13 +483,13 @@
             <span class="icon">🛡️</span>
             <span>AI資訊安全RAG Chat機器人</span>
         </div>
-        <div class="user-info" id="userInfo" style="display: none;">
-            <div class="user-avatar" id="userAvatar"></div>
+        <div class="user-info" id="userInfo" style="display: flex;">
+            <div class="user-avatar" id="userAvatar">A</div>
             <div class="user-details">
-                <div class="user-name" id="userName"></div>
-                <div class="user-provider" id="userProvider"></div>
+                <div class="user-name" id="userName">aaron-ren2021</div>
+                <div class="user-provider" id="userProvider">GitHub 帳號</div>
             </div>
-            <button class="logout-btn" id="logoutBtn">登出</button>
+                        <button id="logoutBtn" onclick="window.chatApp.logout()">登出</button>
         </div>
     </nav>
 
@@ -624,23 +624,54 @@
 
             async checkAuth() {
                 try {
-                    // 為了預覽靜態網頁，先註解掉後端檢查，直接設定測試用戶資料
-                    // const response = await fetch('/auth/status');
-                    // const data = await response.json();
-                    // if (!data.authenticated) {
-                    //     window.location.href = '/login.html';
-                    //     return;
-                    // }
-                    // this.currentUser = data.user;
-                    // this.sessionId = localStorage.getItem('session_id');
+                    // 檢查 URL 中是否有錯誤參數
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const error = urlParams.get('error');
+                    const message = urlParams.get('message');
                     
-                    // 模擬用戶資料
-                    this.currentUser = { name: '測試用戶', provider: 'local', avatar_url: '' };
-                    this.sessionId = 'test_session';
+                    if (error) {
+                        this.showError(`登入失敗: ${error}${message ? ` - ${message}` : ''}`);
+                        // 清理 URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                    
+                    const response = await fetch('/auth/status', {
+                        credentials: 'include'
+                    });
+                    const data = await response.json();
+                    
+                    if (!data.authenticated) {
+                        // 重定向到登入頁面
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    
+                    this.currentUser = data.user;
+                    this.sessionId = this.getCookie('session_id') || localStorage.getItem('session_id') || 'session_' + Date.now();
                     this.updateUserInfo(this.currentUser);
                 } catch (error) {
                     console.error('認證檢查失敗:', error);
+                    // 重定向到登入頁面
                     window.location.href = '/login.html';
+                }
+            }
+
+            getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('errorMessage');
+                if (errorDiv) {
+                    errorDiv.textContent = message;
+                    errorDiv.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        errorDiv.style.display = 'none';
+                    }, 5000);
                 }
             }
 
@@ -650,16 +681,184 @@
                 const userName = document.getElementById('userName');
                 const userProvider = document.getElementById('userProvider');
 
+                // 確保元素存在
+                if (!userInfo || !userAvatar || !userName || !userProvider) {
+                    console.error('用戶資訊元素未找到');
+                    return;
+                }
+
+                // 顯示用戶資訊區域
                 userInfo.style.display = 'flex';
                 
+                // 設定用戶頭像
                 if (user.avatar_url) {
                     userAvatar.innerHTML = `<img src="${user.avatar_url}" alt="Avatar">`;
                 } else {
                     userAvatar.textContent = user.name.charAt(0).toUpperCase();
                 }
                 
+                // 設定用戶名稱和提供商
                 userName.textContent = user.name;
                 userProvider.textContent = `${user.provider.charAt(0).toUpperCase() + user.provider.slice(1)} 帳號`;
+                
+                console.log('用戶資訊已更新:', user.name);
+            }
+
+            enableChatFeatures() {
+                // 啟用輸入框和按鈕
+                const messageInput = document.getElementById('messageInput');
+                const sendButton = document.getElementById('sendButton');
+                
+                messageInput.disabled = false;
+                messageInput.placeholder = '輸入您的安全問題或查詢...';
+                
+                // 根據輸入內容更新按鈕狀態
+                const hasText = messageInput.value.trim().length > 0;
+                sendButton.disabled = !hasText;
+                sendButton.title = hasText ? '發送訊息' : '請輸入訊息';
+                
+                // 啟用快速查詢按鈕
+                document.querySelectorAll('.quick-query-btn').forEach(btn => {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                });
+                
+                // 啟用 Agent 選擇
+                document.querySelectorAll('.agent-option').forEach(option => {
+                    option.style.opacity = '1';
+                    option.style.cursor = 'pointer';
+                });
+            }
+
+            disableChatFeatures() {
+                // 禁用聊天功能
+                const messageInput = document.getElementById('messageInput');
+                const sendButton = document.getElementById('sendButton');
+                
+                messageInput.disabled = true;
+                messageInput.placeholder = '請先登入才能使用AI助手...';
+                sendButton.disabled = true;
+                sendButton.title = '請先登入才能發送訊息';
+                
+                // 禁用快速查詢按鈕
+                document.querySelectorAll('.quick-query-btn').forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                });
+                
+                // 讓 Agent 選擇看起來禁用
+                document.querySelectorAll('.agent-option').forEach(option => {
+                    option.style.opacity = '0.5';
+                });
+            }
+
+            showLoginOptions() {
+                const loginModal = document.createElement('div');
+                loginModal.id = 'loginModal';
+                loginModal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.8);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 10000;
+                `;
+
+                loginModal.innerHTML = `
+                    <div style="
+                        background: white;
+                        padding: 40px;
+                        border-radius: 15px;
+                        text-align: center;
+                        max-width: 400px;
+                        width: 90%;
+                        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+                    ">
+                        <h2 style="margin-bottom: 30px; color: #333;">🛡️ 請先登入</h2>
+                        <p style="margin-bottom: 30px; color: #666;">使用以下方式登入以存取 AI 資訊安全助手</p>
+                        
+                        <button onclick="window.chatApp.loginWithProvider('github')" style="
+                            width: 100%;
+                            padding: 15px;
+                            margin: 10px 0;
+                            background: #24292e;
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            font-size: 16px;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 10px;
+                        ">
+                            <span>🐙</span> 使用 GitHub 登入
+                        </button>
+                        
+                        <button onclick="window.chatApp.loginWithProvider('google')" style="
+                            width: 100%;
+                            padding: 15px;
+                            margin: 10px 0;
+                            background: #4285f4;
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            font-size: 16px;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 10px;
+                        ">
+                            <span>🔍</span> 使用 Google 登入
+                        </button>
+                        
+                        <button onclick="window.chatApp.loginWithProvider('microsoft')" style="
+                            width: 100%;
+                            padding: 15px;
+                            margin: 10px 0;
+                            background: #0078d4;
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            font-size: 16px;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 10px;
+                        ">
+                            <span>🏢</span> 使用 Microsoft 登入
+                        </button>
+                    </div>
+                `;
+
+                document.body.appendChild(loginModal);
+            }
+
+            async loginWithProvider(provider) {
+                try {
+                    const response = await fetch(`/auth/login/${provider}`, {
+                        credentials: 'include'
+                    });
+                    const data = await response.json();
+                    
+                    if (data.authorization_url) {
+                        // 導向 OAuth 授權頁面
+                        window.location.href = data.authorization_url;
+                    } else {
+                        throw new Error('無法取得授權 URL');
+                    }
+                } catch (error) {
+                    console.error(`${provider} 登入失敗:`, error);
+                    alert(`登入失敗: ${error.message}`);
+                }
             }
 
             bindEvents() {
@@ -690,7 +889,18 @@
 
                 document.getElementById('messageInput').addEventListener('input', (e) => {
                     const sendBtn = document.getElementById('sendButton');
-                    sendBtn.disabled = !e.target.value.trim();
+                    const hasText = e.target.value.trim().length > 0;
+                    const isLoggedIn = this.currentUser !== null;
+                    sendBtn.disabled = !hasText || !isLoggedIn;
+                    
+                    // 更新按鈕提示
+                    if (!isLoggedIn) {
+                        sendBtn.title = '請先登入才能發送訊息';
+                    } else if (!hasText) {
+                        sendBtn.title = '請輸入訊息';
+                    } else {
+                        sendBtn.title = '發送訊息';
+                    }
                 });
 
                 document.getElementById('logoutBtn').addEventListener('click', () => {
@@ -734,45 +944,53 @@
                 this.addMessage('user', message);
                 this.showTypingIndicator();
                 
-                // 為了預覽靜態網頁，先註解掉後端 API 呼叫，改以模擬回應
-                // try {
-                //     const response = await fetch('/api/rag/chat', {
-                //         method: 'POST',
-                //         headers: {
-                //             'Content-Type': 'application/json',
-                //             'Authorization': `Bearer ${this.sessionId}`
-                //         },
-                //         body: JSON.stringify({
-                //             query: message,
-                //             agent: this.currentAgent,
-                //             multi_agent: this.currentAgent === 'multi_agent',
-                //             context: {
-                //                 user_id: this.currentUser?.id,
-                //                 session_id: this.sessionId
-                //             }
-                //         })
-                //     });
+                try {
+                    // 檢查是否已登入
+                    if (!this.currentUser || !this.sessionId) {
+                        throw new Error('請先登入才能使用AI助手');
+                    }
                     
-                //     const data = await response.json();
+                    const response = await fetch('/api/rag/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.sessionId}`,
+                            'X-Session-ID': this.sessionId
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            query: message,
+                            agent: this.currentAgent,
+                            multi_agent: this.currentAgent === 'multi_agent',
+                            context: {
+                                user_id: this.currentUser?.id,
+                                session_id: this.sessionId
+                            }
+                        })
+                    });
                     
-                //     if (data.error) {
-                //         throw new Error(data.error);
-                //     }
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
                     
-                //     this.addMessage('assistant', data.response, data.analysis);
-                // } catch (error) {
-                //     console.error('發送訊息失敗:', error);
-                //     this.showError(`發送失敗: ${error.message}`);
-                //     this.addMessage('assistant', '抱歉，處理您的請求時發生錯誤。請稍後再試。');
-                // } finally {
-                //     this.hideTypingIndicator();
-                // }
-                
-                // 模擬回應
-                setTimeout(() => {
-                    this.addMessage('assistant', '這是模擬的回應。');
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    this.addMessage('assistant', data.response, data.analysis);
+                } catch (error) {
+                    console.error('發送訊息失敗:', error);
+                    this.showError(`發送失敗: ${error.message}`);
+                    this.addMessage('assistant', '抱歉，處理您的請求時發生錯誤。請稍後再試。');
+                } finally {
                     this.hideTypingIndicator();
-                }, 1000);
+                    // 重新啟用發送按鈕
+                    setTimeout(() => {
+                        document.getElementById('sendButton').disabled = false;
+                    }, 500);
+                }
             }
 
             addMessage(type, content, analysis = null) {
@@ -827,36 +1045,54 @@
 
             showError(message) {
                 const errorDiv = document.getElementById('errorMessage');
-                errorDiv.textContent = message;
-                errorDiv.style.display = 'block';
-                
-                setTimeout(() => {
-                    errorDiv.style.display = 'none';
-                }, 5000);
+                if (errorDiv) {
+                    errorDiv.textContent = message;
+                    errorDiv.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        errorDiv.style.display = 'none';
+                    }, 5000);
+                } else {
+                    console.error('Error:', message);
+                    alert(message);
+                }
             }
 
             async logout() {
-                // 為了預覽靜態網頁，先註解掉後端登出邏輯
-                // try {
-                //     const response = await fetch('/auth/logout', {
-                //         method: 'POST',
-                //         headers: {
-                //             'Authorization': `Bearer ${this.sessionId}`
-                //         }
-                //     });
-                //     if (response.ok) {
-                //         localStorage.removeItem('session_id');
-                //         window.location.href = '/login.html';
-                //     } else {
-                //         throw new Error('登出失敗');
-                //     }
-                // } catch (error) {
-                //     console.error('登出錯誤:', error);
-                //     localStorage.removeItem('session_id');
-                //     window.location.href = '/login.html';
-                // }
-                // 模擬登出
-                alert('已模擬登出');
+                try {
+                    if (!confirm('確定要登出嗎？')) {
+                        return;
+                    }
+
+                    const response = await fetch('/auth/logout', {
+                        method: 'POST',
+                        credentials: 'include'
+                    });
+                    
+                    if (response.ok) {
+                        localStorage.removeItem('session_id');
+                        // 清除 cookie
+                        document.cookie = "session_id=; path=/; max-age=0";
+                        this.currentUser = null;
+                        this.sessionId = null;
+                        
+                        // 隱藏用戶資訊
+                        document.getElementById('userInfo').style.display = 'none';
+                        
+                        // 重定向到登入頁面
+                        window.location.href = '/login.html';
+                    } else {
+                        throw new Error('登出失敗');
+                    }
+                } catch (error) {
+                    console.error('登出錯誤:', error);
+                    // 即使出錯也清除本地狀態並重定向到登入頁面
+                    localStorage.removeItem('session_id');
+                    document.cookie = "session_id=; path=/; max-age=0";
+                    this.currentUser = null;
+                    this.sessionId = null;
+                    window.location.href = '/login.html';
+                }
             }
 
             updateWelcomeTime() {
@@ -874,8 +1110,40 @@
 
         // 初始化應用
         document.addEventListener('DOMContentLoaded', () => {
-            new ChatApp();
+            window.chatApp = new ChatApp();
+            
+            // 載入用戶資訊
+            loadUserInfo();
         });
+        
+        // 載入用戶資訊
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/auth/status', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                if (data.authenticated && data.user) {
+                    updateUserDisplay(data.user);
+                }
+            } catch (error) {
+                console.error('載入用戶資訊失敗:', error);
+            }
+        }
+        
+        // 更新用戶顯示
+        function updateUserDisplay(user) {
+            document.getElementById('userName').textContent = user.name;
+            document.getElementById('userProvider').textContent = `${user.provider.charAt(0).toUpperCase() + user.provider.slice(1)} 帳號`;
+            
+            const userAvatar = document.getElementById('userAvatar');
+            if (user.avatar_url) {
+                userAvatar.innerHTML = `<img src="${user.avatar_url}" alt="Avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            } else {
+                userAvatar.textContent = user.name.charAt(0).toUpperCase();
+            }
+        }
     </script>
 </body>
 </html>

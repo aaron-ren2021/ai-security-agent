@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub OAuth 測試</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            margin: 10px 5px;
+            background-color: #24292e;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background-color: #1a1e22;
+        }
+        .success {
+            color: #28a745;
+            background-color: #d4edda;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .github-icon {
+            display: inline-block;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 GitHub OAuth 測試</h1>
+        
+        <div class="info">
+            <h3>📋 配置檢查</h3>
+            <p><strong>Client ID:</strong> Ov23liDJENPQkcVi1TIh</p>
+            <p><strong>回呼 URL:</strong> http://localhost:5002/auth/callback/github</p>
+            <p><strong>應用名稱:</strong> AI Security RAG Bot</p>
+        </div>
+
+        <div class="status" id="authStatus">
+            <h3>🔍 檢查認證狀態...</h3>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <button class="btn" onclick="checkAuthStatus()">
+                🔍 檢查認證狀態
+            </button>
+            <button class="btn" onclick="testGitHubLogin()">
+                <span class="github-icon">🐱</span>測試 GitHub 登入
+            </button>
+            <button class="btn" onclick="getUserInfo()" id="userInfoBtn" style="display: none;">
+                👤 取得用戶資訊
+            </button>
+            <button class="btn" onclick="logout()" id="logoutBtn" style="display: none;">
+                🚪 登出
+            </button>
+        </div>
+
+        <div id="results">
+            <h3>📊 測試結果</h3>
+            <div id="output"></div>
+        </div>
+
+        <div class="info">
+            <h3>📝 測試步驟說明</h3>
+            <ol>
+                <li><strong>檢查認證狀態</strong>：確認目前是否已登入</li>
+                <li><strong>測試 GitHub 登入</strong>：啟動 OAuth 流程</li>
+                <li><strong>完成授權</strong>：在 GitHub 頁面同意授權</li>
+                <li><strong>驗證結果</strong>：回到應用後檢查用戶資訊</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5002';
+        
+        // 檢查認證狀態
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/status`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('authStatus');
+                if (data.authenticated) {
+                    statusDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ 已登入</h3>
+                            <p><strong>用戶:</strong> ${data.user.name} (${data.user.email})</p>
+                            <p><strong>提供商:</strong> ${data.user.provider}</p>
+                            <p><strong>登入時間:</strong> ${data.user.last_login || '未知'}</p>
+                        </div>
+                    `;
+                    document.getElementById('userInfoBtn').style.display = 'inline-block';
+                    document.getElementById('logoutBtn').style.display = 'inline-block';
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="error">
+                            <h3>❌ 未登入</h3>
+                            <p>請使用 GitHub 登入進行測試</p>
+                        </div>
+                    `;
+                    document.getElementById('userInfoBtn').style.display = 'none';
+                    document.getElementById('logoutBtn').style.display = 'none';
+                }
+                
+                logResult('認證狀態檢查', data);
+            } catch (error) {
+                logError('檢查認證狀態失敗', error);
+            }
+        }
+        
+        // 測試 GitHub 登入
+        async function testGitHubLogin() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/login/github`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                if (data.authorization_url) {
+                    logResult('GitHub 授權 URL 生成成功', data);
+                    
+                    // 開啟授權頁面
+                    window.open(data.authorization_url, '_blank');
+                    
+                    // 提示用戶
+                    alert('請在新開啟的 GitHub 頁面完成授權，然後回到此頁面檢查狀態');
+                } else {
+                    logError('無法取得授權 URL', data);
+                }
+            } catch (error) {
+                logError('GitHub 登入測試失敗', error);
+            }
+        }
+        
+        // 取得用戶資訊
+        async function getUserInfo() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/user`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                logResult('用戶資訊', data);
+            } catch (error) {
+                logError('取得用戶資訊失敗', error);
+            }
+        }
+        
+        // 登出
+        async function logout() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                logResult('登出結果', data);
+                
+                // 重新檢查狀態
+                setTimeout(() => {
+                    checkAuthStatus();
+                }, 1000);
+            } catch (error) {
+                logError('登出失敗', error);
+            }
+        }
+        
+        // 記錄結果
+        function logResult(title, data) {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <div class="success">
+                    <h4>✅ ${title}</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // 記錄錯誤
+        function logError(title, error) {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <div class="error">
+                    <h4>❌ ${title}</h4>
+                    <pre>${error.message || JSON.stringify(error, null, 2)}</pre>
+                </div>
+            `;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // 頁面載入時檢查狀態
+        window.onload = function() {
+            checkAuthStatus();
+        };
+    </script>
+</body>
+</html>

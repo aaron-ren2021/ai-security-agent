@@ -308,6 +308,11 @@
         </div>
 
         <div class="oauth-buttons" id="oauthButtons">
+            <a href="/test-login" class="oauth-btn" style="background: #28a745; color: white; border-color: #28a745;">
+                <span class="icon">🧪</span>
+                <span>測試登入（無需OAuth）</span>
+            </a>
+            
             <a href="#" class="oauth-btn microsoft" id="microsoftBtn">
                 <span class="icon">🏢</span>
                 <span>使用 Microsoft 帳號登入</span>
@@ -431,6 +436,13 @@
                     const data = await response.json();
 
                     if (data.authorization_url) {
+                        // 顯示調試信息
+                        console.log('OAuth 配置信息:', {
+                            provider: data.provider,
+                            redirect_uri: data.redirect_uri,
+                            authorization_url: data.authorization_url
+                        });
+                        
                         // 儲存狀態到sessionStorage
                         sessionStorage.setItem('oauth_state', data.state);
                         sessionStorage.setItem('oauth_provider', provider);
@@ -442,7 +454,8 @@
                     }
                 } catch (error) {
                     this.hideLoading();
-                    this.showError(`登入失敗: ${error.message}`);
+                    console.error('OAuth 流程錯誤:', error);
+                    this.showError(`登入失敗: ${error.message}。請檢查 OAuth 配置是否正確。`);
                 }
             }
 

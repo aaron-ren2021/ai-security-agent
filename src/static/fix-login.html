@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>修復登入狀態</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        .btn:hover {
+            background: #5a67d8;
+        }
+        .success {
+            color: #28a745;
+            margin: 15px 0;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🛠️ 修復右上角登入顯示</h2>
+        <div class="info">
+            <p><strong>您的登入資訊：</strong></p>
+            <p>用戶名：aaron-ren2021</p>
+            <p>Email：aaron_l@cloudinfo.com.tw</p>
+            <p>提供商：GitHub</p>
+        </div>
+        
+        <button class="btn" onclick="fixLogin()">🔧 修復登入狀態</button>
+        <button class="btn" onclick="checkStatus()">🔍 檢查認證狀態</button>
+        <button class="btn" onclick="goToMain()">🏠 前往主頁</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function fixLogin() {
+            // 設定正確的 session cookie
+            document.cookie = "session_id=tle2whvCjq13ZrihOcwoH_2RHXbQXV727wxNkYyGT4I; path=/; max-age=86400; SameSite=Lax";
+            
+            document.getElementById('result').innerHTML = '<div class="success">✅ Session Cookie 已設定</div>';
+            
+            setTimeout(() => {
+                document.getElementById('result').innerHTML += '<div class="success">🔄 正在跳轉到主頁...</div>';
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1000);
+            }, 1000);
+        }
+        
+        async function checkStatus() {
+            try {
+                const response = await fetch('/auth/status', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                document.getElementById('result').innerHTML = `
+                    <div class="info">
+                        <h4>認證狀態：</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <div style="color: red;">錯誤：${error.message}</div>
+                `;
+            }
+        }
+        
+        function goToMain() {
+            window.location.href = '/';
+        }
+        
+        // 顯示當前 cookies
+        document.addEventListener('DOMContentLoaded', () => {
+            const cookies = document.cookie;
+            if (cookies.includes('session_id')) {
+                document.getElementById('result').innerHTML = '<div class="success">✅ 檢測到 Session Cookie</div>';
+            } else {
+                document.getElementById('result').innerHTML = '<div style="color: orange;">⚠️ 未檢測到 Session Cookie</div>';
+            }
+        });
+    </script>
+</body>
+</html>

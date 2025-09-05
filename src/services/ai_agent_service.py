@@ -59,7 +59,6 @@ class SecurityAgent:
             query: 查詢內容
             collection_name: 知識庫集合名稱
             n_results: 返回結果數量
-            
         Returns:
             相關知識列表
         """
@@ -68,7 +67,6 @@ class SecurityAgent:
             query=query,
             n_results=n_results
         )
-    
     def generate_response(self, 
                          prompt: str,
                          model: str = "gpt-3.5-turbo",

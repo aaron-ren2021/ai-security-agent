@@ -203,6 +203,7 @@ def oauth_callback(provider):
             return response
         
     except Exception as e:
+        current_app.logger.error(f"OAuth callback failed: {str(e)}")
         if wants_json:
             return jsonify({'error': f'OAuth callback failed: {str(e)}'}), 500
         else:
@@ -517,4 +518,3 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.utcnow().isoformat()
         }), 500
-
