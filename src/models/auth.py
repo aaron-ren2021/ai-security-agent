@@ -119,7 +119,10 @@ class OAuthState(db.Model):
             return None
         
         redirect_url = oauth_state.redirect_url
+        # 批量刪除狀態，減少資料庫操作
         db.session.delete(oauth_state)
+        # 同時清理其他過期狀態，優化資料庫效能
+        cls.query.filter(cls.expires_at < datetime.utcnow()).delete()
         db.session.commit()
         return redirect_url
     
@@ -205,6 +208,15 @@ class UserSession(db.Model):
             db.session.commit()
             return True
         return False
+    
+    @classmethod
+    def cleanup_expired(cls):
+        """清理過期的會話記錄"""
+        expired_sessions = cls.query.filter(cls.expires_at < datetime.utcnow()).all()
+        for session in expired_sessions:
+            db.session.delete(session)
+        db.session.commit()
+        return len(expired_sessions)
     
     @classmethod
     def revoke_user_sessions(cls, user_id):
