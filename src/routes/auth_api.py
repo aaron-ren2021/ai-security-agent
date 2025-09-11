@@ -1,7 +1,12 @@
 """
 OAuth認證API路由
-處理所有認證相關的API端點
+處理登入、登出和認證狀態查詢
 """
+
+import os
+import json
+from datetime import datetime
+from flask import Blueprint, request, jsonify, redirect, url_for, make_response, current_app, g
 
 from flask import Blueprint, request, jsonify, redirect, url_for, make_response, current_app, g
 from urllib.parse import urlencode, parse_qs
@@ -87,241 +92,175 @@ def oauth_login(provider):
 def oauth_callback(provider):
     """OAuth回調處理"""
     try:
+        print(f"[DEBUG] OAuth callback started for provider: {provider}")
+        
         # 檢查請求是否來自瀏覽器（需要 HTML 回應）
         accept_header = request.headers.get('Accept', '')
         wants_json = 'application/json' in accept_header and 'text/html' not in accept_header
+        print(f"[DEBUG] Accept header: {accept_header}, wants_json: {wants_json}")
         
         # 驗證提供商
         if not oauth_service.validate_provider(provider):
+            error_msg = f"Unsupported provider: {provider}"
+            print(f"[ERROR] {error_msg}")
             if wants_json:
-                return jsonify({'error': f'Unsupported provider: {provider}'}), 400
-            else:
-                return redirect(f'/?error=unsupported_provider')
+                return jsonify({'error': error_msg}), 400
+            return redirect(f'/login?error=unsupported_provider')
         
         # 取得授權碼和狀態
         code = request.args.get('code')
         state = request.args.get('state')
         error = request.args.get('error')
         
+        print(f"[DEBUG] Callback params - code: {code[:10] if code else None}..., state: {state}, error: {error}")
+        
         # 檢查是否有錯誤
         if error:
-            error_description = request.args.get('error_description', 'Unknown error')
-            error_uri = request.args.get('error_uri', '')
-            
-            # Microsoft 特殊錯誤處理
-            if provider == 'microsoft':
-                if 'AADSTS' in error_description:
-                    print(f"Microsoft Azure AD error: {error} - {error_description}")
-                    if 'AADSTS700016' in error_description:
-                        error_description = 'Application not found in tenant directory. Please check Microsoft app configuration.'
-                    elif 'AADSTS50011' in error_description:
-                        error_description = 'Invalid redirect URI. Please check Microsoft app registration.'
-                    elif 'AADSTS16000' in error_description:
-                        error_description = 'User account not found in tenant.'
-            
+            error_description = request.args.get('error_description', error)
+            print(f"[ERROR] OAuth provider returned error: {error} - {error_description}")
             if wants_json:
-                return jsonify({
-                    'error': f'OAuth error: {error}',
-                    'description': error_description,
-                    'error_uri': error_uri
-                }), 400
-            else:
-                return redirect(f'/?error={error}&description={error_description}')
+                return jsonify({'error': f'OAuth error: {error_description}'}), 400
+            return redirect(f'/login?error={error}')
         
         # 檢查必要參數
         if not code or not state:
+            error_msg = "Missing authorization code or state"
+            print(f"[ERROR] {error_msg}")
             if wants_json:
-                return jsonify({'error': 'Missing authorization code or state'}), 400
-            else:
-                return redirect('/?error=missing_parameters')
+                return jsonify({'error': error_msg}), 400
+            return redirect('/login?error=missing_params')
         
-        # 驗證CSRF狀態
-        redirect_url = OAuthState.verify_state(state, provider)
-        if redirect_url is None:
+        # 驗證並取得狀態資訊
+        oauth_state_obj = OAuthState.verify_state(state, provider)
+        if not oauth_state_obj:
+            error_msg = "Invalid or expired state"
+            print(f"[ERROR] {error_msg}")
             if wants_json:
-                return jsonify({'error': 'Invalid or expired state parameter'}), 400
-            else:
-                return redirect('/?error=invalid_state')
+                return jsonify({'error': error_msg}), 400
+            return redirect('/login?error=invalid_state')
         
-        # 強制使用localhost來確保與GitHub OAuth設置匹配
-        base_url = "http://localhost:5002"
-        oauth_service.base_url = base_url
+        print(f"[DEBUG] OAuth state verified successfully")
         
-        token_data = oauth_service.exchange_code_for_token(provider, code)
-        if not token_data:
+        # 步驟1: 交換授權碼取得存取令牌
+        print(f"[DEBUG] Step 1: Exchanging code for access token")
+        try:
+            access_token = oauth_service.exchange_code_for_token(provider, code)
+            print(f"[DEBUG] Access token obtained: {access_token[:10] if access_token else None}...")
+        except Exception as e:
+            print(f"[ERROR] Failed to exchange code for token: {e}")
             if wants_json:
-                return jsonify({'error': 'Failed to exchange authorization code'}), 500
-            else:
-                return redirect('/?error=token_exchange_failed')
+                return jsonify({'error': 'token_exchange_failed'}), 500
+            return redirect('/login?error=token_exchange_failed')
         
-        # 取得用戶資訊
-        access_token = token_data.get('access_token')
-        user_info = oauth_service.get_user_info(provider, access_token)
+        if not access_token:
+            print(f"[ERROR] No access token received")
+            if wants_json:
+                return jsonify({'error': 'token_exchange_failed'}), 500
+            return redirect('/login?error=token_exchange_failed')
+        
+        # 步驟2: 取得用戶資訊
+        print(f"[DEBUG] Step 2: Getting user info")
+        try:
+            user_info = oauth_service.get_user_info(provider, access_token)
+            print(f"[DEBUG] User info obtained: {user_info}")
+        except Exception as e:
+            print(f"[ERROR] Failed to get user info: {e}")
+            import traceback
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
+            if wants_json:
+                return jsonify({'error': 'user_info_failed'}), 500
+            return redirect('/login?error=user_info_failed')
         
         if not user_info:
+            print(f"[ERROR] No user info received")
             if wants_json:
-                return jsonify({'error': 'Failed to fetch user information'}), 500
-            else:
-                return redirect('/?error=user_info_failed')
+                return jsonify({'error': 'user_info_failed'}), 500
+            return redirect('/login?error=user_info_failed')
         
-        # 建立或更新用戶
-        user = auth_service.create_or_update_user(provider, user_info)
+        # 步驟3: 建立或更新用戶
+        print(f"[DEBUG] Step 3: Creating or updating user")
+        try:
+            user = auth_service.create_or_update_user(provider, user_info)
+            print(f"[DEBUG] User creation result: {user}")
+        except Exception as e:
+            print(f"[ERROR] Failed to create/update user: {e}")
+            import traceback
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
+            if wants_json:
+                return jsonify({'error': 'user_creation_failed'}), 500
+            return redirect('/login?error=user_creation_failed')
+        
         if not user:
+            print(f"[ERROR] User creation returned None")
             if wants_json:
-                return jsonify({'error': 'Failed to create or update user'}), 500
-            else:
-                return redirect('/?error=user_creation_failed')
+                return jsonify({'error': 'user_creation_failed'}), 500
+            return redirect('/login?error=user_creation_failed')
         
-        # 建立會話
+        # 步驟4: 建立會話
+        print(f"[DEBUG] Step 4: Creating user session")
         request_info = get_request_info()
         session_id = auth_service.create_user_session(user, request_info)
         
         if not session_id:
+            print(f"[ERROR] Failed to create session")
             if wants_json:
-                return jsonify({'error': 'Failed to create user session'}), 500
-            else:
-                return redirect('/?error=session_creation_failed')
+                return jsonify({'error': 'session_creation_failed'}), 500
+            return redirect('/login?error=session_creation_failed')
         
-        # 準備回應
-        response_data = {
-            'success': True,
-            'user': user.to_dict(),
-            'session_id': session_id,
-            'redirect_url': redirect_url
-        }
+        print(f"[DEBUG] Session created successfully: {session_id}")
         
-        # 根據請求類型返回不同格式
+        # 清理已使用的狀態
+        db.session.delete(oauth_state_obj)
+        # 同時清理其他過期狀態
+        OAuthState.cleanup_expired()
+        db.session.commit()
+        
+        # 取得重定向URL
+        redirect_url = oauth_state_obj.redirect_url or '/'
+        print(f"[DEBUG] Redirecting to: {redirect_url}")
+        
         if wants_json:
-            # API 請求，返回 JSON
-            response = make_response(jsonify(response_data))
-            response.set_cookie(
-                'session_id',
-                session_id,
-                max_age=86400,  # 24小時
-                httponly=True,
-                secure=request.is_secure,
-                samesite='Lax'
-            )
-            return response
+            return jsonify({
+                'success': True,
+                'user': user.to_dict(),
+                'redirect_url': redirect_url
+            })
         else:
-            # 瀏覽器請求，返回成功頁面而不是直接重導向
-            success_html = f'''
-            <!DOCTYPE html>
-            <html lang="zh-TW">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>登入成功 - AI資訊安全RAG Chat機器人</title>
-                <style>
-                    body {{
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        min-height: 100vh;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        margin: 0;
-                    }}
-                    .success-container {{
-                        background: rgba(255, 255, 255, 0.95);
-                        backdrop-filter: blur(10px);
-                        border-radius: 20px;
-                        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-                        padding: 40px;
-                        text-align: center;
-                        max-width: 500px;
-                        width: 90%;
-                    }}
-                    .success-icon {{
-                        width: 80px;
-                        height: 80px;
-                        background: linear-gradient(135deg, #28a745, #20c997);
-                        border-radius: 50%;
-                        margin: 0 auto 20px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 32px;
-                        color: white;
-                        animation: bounce 1s ease-out;
-                    }}
-                    @keyframes bounce {{
-                        0%, 20%, 50%, 80%, 100% {{ transform: translateY(0); }}
-                        40% {{ transform: translateY(-10px); }}
-                        60% {{ transform: translateY(-5px); }}
-                    }}
-                    h1 {{
-                        color: #28a745;
-                        margin-bottom: 15px;
-                        font-size: 24px;
-                    }}
-                    .user-info {{
-                        background: #f8f9fa;
-                        padding: 20px;
-                        border-radius: 10px;
-                        margin: 20px 0;
-                        text-align: left;
-                    }}
-                    .redirect-info {{
-                        color: #666;
-                        margin: 20px 0;
-                        font-size: 14px;
-                    }}
-                    .countdown {{
-                        font-weight: bold;
-                        color: #667eea;
-                    }}
-                </style>
-            </head>
-            <body>
-                <div class="success-container">
-                    <div class="success-icon">✅</div>
-                    <h1>登入成功！</h1>
-                    <p>歡迎使用 AI資訊安全RAG Chat機器人</p>
-                    
-                    <div class="user-info">
-                        <strong>登入資訊：</strong><br>
-                        用戶名：{user.name}<br>
-                        Email：{user.email}<br>
-                        提供商：{user.provider.title()}
-                    </div>
-                    
-                    <div class="redirect-info">
-                        <p>正在跳轉到主頁面...</p>
-                        <p class="countdown">3 秒後自動跳轉</p>
-                    </div>
-                </div>
-
-                <script>
-                    // 設定會話Cookie
-                    document.cookie = "session_id={session_id}; path=/; max-age=86400; SameSite=Lax";
-                    
-                    // 倒數計時跳轉
-                    let countdown = 3;
-                    const countdownElement = document.querySelector('.countdown');
-                    
-                    const timer = setInterval(() => {{
-                        countdown--;
-                        if (countdown > 0) {{
-                            countdownElement.textContent = `${{countdown}} 秒後自動跳轉`;
-                        }} else {{
-                            countdownElement.textContent = '正在跳轉...';
-                            clearInterval(timer);
-                            window.location.href = '{redirect_url}';
-                        }}
-                    }}, 1000);
-                    
-                    // 點擊頁面也可以立即跳轉
-                    document.addEventListener('click', () => {{
-                        clearInterval(timer);
-                        window.location.href = '{redirect_url}';
-                    }});
-                </script>
-            </body>
-            </html>
-            '''
+            # 設置cookie並顯示登入完成頁面
+            from flask import send_from_directory, render_template_string
             
-            response = make_response(success_html)
+            # 讀取 login-redirect.html 檔案
+            with open(os.path.join(current_app.static_folder, 'login-redirect.html'), 'r', encoding='utf-8') as f:
+                template_content = f.read()
+            
+            # 替換用戶資訊
+            user_data = {
+                'username': user.name,
+                'email': user.email,
+                'provider': user.provider.title(),
+                'ip_address': request.remote_addr,
+                'login_time': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                'avatar_url': user.avatar_url
+            }
+            
+            # 注入用戶資訊到 JavaScript 中
+            user_info_script = f"""
+            <script>
+                window.userInfo = {{
+                    'username': '{user_data['username']}',
+                    'email': '{user_data['email']}',
+                    'provider': '{user_data['provider']}',
+                    'ip_address': '{user_data['ip_address']}',
+                    'login_time': '{user_data['login_time']}',
+                    'avatar_url': '{user_data['avatar_url'] or ''}'
+                }};
+            </script>
+            """
+            
+            # 在 </head> 前插入用戶資訊
+            template_content = template_content.replace('</head>', f'{user_info_script}</head>')
+            
+            response = make_response(template_content)
             response.set_cookie(
                 'session_id',
                 session_id,
@@ -331,117 +270,16 @@ def oauth_callback(provider):
                 samesite='Lax'
             )
             return response
-        
+            
     except Exception as e:
+        print(f"[ERROR] Unexpected error in OAuth callback: {e}")
+        import traceback
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
         current_app.logger.error(f"OAuth callback error for {provider}: {str(e)}")
+        
         if wants_json:
-            return jsonify({'error': f'OAuth callback failed: {str(e)}'}), 500
-        else:
-            # 返回錯誤頁面而不是簡單重導向
-            error_html = f'''
-            <!DOCTYPE html>
-            <html lang="zh-TW">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>登入失敗 - AI資訊安全RAG Chat機器人</title>
-                <style>
-                    body {{
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        min-height: 100vh;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        margin: 0;
-                    }}
-                    .error-container {{
-                        background: rgba(255, 255, 255, 0.95);
-                        backdrop-filter: blur(10px);
-                        border-radius: 20px;
-                        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-                        padding: 40px;
-                        text-align: center;
-                        max-width: 500px;
-                        width: 90%;
-                    }}
-                    .error-icon {{
-                        width: 80px;
-                        height: 80px;
-                        background: linear-gradient(135deg, #dc3545, #e74c3c);
-                        border-radius: 50%;
-                        margin: 0 auto 20px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 32px;
-                        color: white;
-                    }}
-                    h1 {{
-                        color: #dc3545;
-                        margin-bottom: 15px;
-                        font-size: 24px;
-                    }}
-                    .error-details {{
-                        background: #f8f9fa;
-                        padding: 20px;
-                        border-radius: 10px;
-                        margin: 20px 0;
-                        text-align: left;
-                        border-left: 4px solid #dc3545;
-                    }}
-                    .retry-btn {{
-                        background: #667eea;
-                        color: white;
-                        border: none;
-                        padding: 12px 24px;
-                        border-radius: 8px;
-                        cursor: pointer;
-                        font-size: 16px;
-                        margin: 10px;
-                        text-decoration: none;
-                        display: inline-block;
-                    }}
-                    .retry-btn:hover {{
-                        background: #5a67d8;
-                    }}
-                    .home-btn {{
-                        background: #28a745;
-                        color: white;
-                        border: none;
-                        padding: 12px 24px;
-                        border-radius: 8px;
-                        cursor: pointer;
-                        font-size: 16px;
-                        margin: 10px;
-                        text-decoration: none;
-                        display: inline-block;
-                    }}
-                    .home-btn:hover {{
-                        background: #218838;
-                    }}
-                </style>
-            </head>
-            <body>
-                <div class="error-container">
-                    <div class="error-icon">❌</div>
-                    <h1>登入失敗</h1>
-                    <p>很抱歉，{provider.title()} 登入過程中發生錯誤</p>
-                    
-                    <div class="error-details">
-                        <strong>錯誤詳情：</strong><br>
-                        {str(e)}<br><br>
-                        <strong>提供商：</strong> {provider.title()}<br>
-                        <strong>時間：</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                    </div>
-                    
-                    <a href="/login.html" class="retry-btn">🔄 重試登入</a>
-                    <a href="/" class="home-btn">🏠 返回首頁</a>
-                </div>
-            </body>
-            </html>
-            '''
-            return make_response(error_html), 500
+            return jsonify({'error': 'internal_server_error'}), 500
+        return redirect('/login?error=internal_server_error')
 
 
 @auth_bp.route('/logout', methods=['POST'])

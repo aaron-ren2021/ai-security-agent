@@ -1,16 +1,280 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
-    <title>設定登入並跳轉</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登入成功 - AI資訊安全RAG Chat機器人</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #334155;
+            padding: 20px;
+        }
+
+        .success-container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            max-width: 500px;
+            width: 100%;
+            border: 1px solid #e2e8f0;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .success-icon {
+            font-size: 48px;
+            color: #10b981;
+            margin-bottom: 16px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #64748b;
+        }
+
+        .user-info {
+            margin-bottom: 32px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .info-value {
+            font-size: 14px;
+            color: #1e293b;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #dcfce7;
+            color: #166534;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: #22c55e;
+            border-radius: 50%;
+        }
+
+        .footer {
+            text-align: center;
+            padding-top: 24px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .countdown-text {
+            font-size: 14px;
+            color: #64748b;
+            margin-bottom: 16px;
+        }
+
+        .countdown-number {
+            font-weight: 600;
+            color: #3b82f6;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #3b82f6;
+            border-radius: 2px;
+            transition: width 1s linear;
+        }
+
+        .click-hint {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 12px;
+        }
+
+        @media (max-width: 480px) {
+            .success-container {
+                padding: 24px;
+                margin: 16px;
+            }
+            
+            .title {
+                font-size: 20px;
+            }
+            
+            .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h2>正在設定登入狀態...</h2>
+    <div class="success-container">
+        <div class="header">
+            <div class="success-icon">✓</div>
+            <h1 class="title">登入成功</h1>
+            <p class="subtitle">歡迎使用 AI 資訊安全助手</p>
+        </div>
+
+        <div class="user-info">
+            <div class="info-row">
+                <span class="info-label">使用者名稱</span>
+                <span class="info-value" id="username">載入中...</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">電子郵件</span>
+                <span class="info-value" id="email">載入中...</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">登入方式</span>
+                <span class="info-value" id="provider">載入中...</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">登入時間</span>
+                <span class="info-value" id="loginTime">載入中...</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">連線狀態</span>
+                <span class="status-badge">
+                    <span class="status-dot"></span>
+                    已連線
+                </span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p class="countdown-text">
+                將在 <span class="countdown-number" id="countdown">3</span> 秒後自動跳轉至主頁面
+            </p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+            <p class="click-hint">點擊任何地方立即進入</p>
+        </div>
+    </div>
+
     <script>
-        // 設定 session cookie
-        document.cookie = "session_id=tle2whvCjq13ZrihOcwoH_2RHXbQXV727wxNkYyGT4I; path=/; max-age=86400; SameSite=Lax";
+        // 載入用戶資訊
+        function loadUserInfo() {
+            // 如果有從後端注入的用戶資訊，使用它
+            if (window.userInfo) {
+                document.getElementById('username').textContent = window.userInfo.username || '未知用戶';
+                document.getElementById('email').textContent = window.userInfo.email || '未知郵箱';
+                document.getElementById('provider').textContent = window.userInfo.provider || '未知';
+                document.getElementById('loginTime').textContent = window.userInfo.login_time || '未知時間';
+            } else {
+                // 如果沒有注入的資訊，嘗試從 API 獲取
+                fetch('/auth/user')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.authenticated) {
+                            document.getElementById('username').textContent = data.user.name || '未知用戶';
+                            document.getElementById('email').textContent = data.user.email || '未知郵箱';
+                            document.getElementById('provider').textContent = data.user.provider?.toUpperCase() || '未知';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('載入用戶資訊失敗:', error);
+                    });
+                // 設定當前時間作為登入時間
+                document.getElementById('loginTime').textContent = new Date().toLocaleString('zh-TW', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            }
+        }
+
+        // 倒數計時
+        let countdown = 3;
+        const countdownElement = document.getElementById('countdown');
+        const progressBar = document.getElementById('progressBar');
         
-        // 立即跳轉
-        window.location.href = '/';
+        // 初始化進度條
+        progressBar.style.width = '100%';
+        
+        const timer = setInterval(() => {
+            countdown--;
+            countdownElement.textContent = countdown;
+            
+            // 更新進度條
+            const percentage = (countdown / 3) * 100;
+            progressBar.style.width = percentage + '%';
+            
+            if (countdown <= 0) {
+                clearInterval(timer);
+                // 跳轉到主頁
+                window.location.href = '/';
+            }
+        }, 1000);
+        
+        // 點擊任何地方立即跳轉
+        document.addEventListener('click', () => {
+            clearInterval(timer);
+            window.location.href = '/';
+        });
+
+        // 頁面載入時執行
+        document.addEventListener('DOMContentLoaded', loadUserInfo);
     </script>
 </body>
 </html>
