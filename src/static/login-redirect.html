@@ -227,20 +227,12 @@
                             document.getElementById('username').textContent = data.user.name || '未知用戶';
                             document.getElementById('email').textContent = data.user.email || '未知郵箱';
                             document.getElementById('provider').textContent = data.user.provider?.toUpperCase() || '未知';
+                            document.getElementById('loginTime').textContent = data.user.login_time || '未知時間';
                         }
                     })
                     .catch(error => {
                         console.error('載入用戶資訊失敗:', error);
                     });
-                // 設定當前時間作為登入時間
-                document.getElementById('loginTime').textContent = new Date().toLocaleString('zh-TW', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
             }
         }
 

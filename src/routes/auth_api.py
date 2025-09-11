@@ -131,21 +131,28 @@ def oauth_callback(provider):
             return redirect('/login?error=missing_params')
         
         # 驗證並取得狀態資訊
-        oauth_state_obj = OAuthState.verify_state(state, provider)
-        if not oauth_state_obj:
+        oauth_state_result = OAuthState.verify_state(state, provider)
+        if oauth_state_result is None:
             error_msg = "Invalid or expired state"
             print(f"[ERROR] {error_msg}")
             if wants_json:
                 return jsonify({'error': error_msg}), 400
             return redirect('/login?error=invalid_state')
         
+        # verify_state 已經刪除了狀態並返回 redirect_url
+        redirect_url = oauth_state_result or '/'
         print(f"[DEBUG] OAuth state verified successfully")
         
         # 步驟1: 交換授權碼取得存取令牌
         print(f"[DEBUG] Step 1: Exchanging code for access token")
         try:
-            access_token = oauth_service.exchange_code_for_token(provider, code)
-            print(f"[DEBUG] Access token obtained: {access_token[:10] if access_token else None}...")
+            token_data = oauth_service.exchange_code_for_token(provider, code)
+            if token_data and 'access_token' in token_data:
+                access_token = token_data['access_token']
+                print(f"[DEBUG] Access token obtained: {access_token[:10] if access_token else None}...")
+            else:
+                access_token = None
+                print(f"[ERROR] No access_token in response: {token_data}")
         except Exception as e:
             print(f"[ERROR] Failed to exchange code for token: {e}")
             if wants_json:
@@ -209,14 +216,11 @@ def oauth_callback(provider):
         
         print(f"[DEBUG] Session created successfully: {session_id}")
         
-        # 清理已使用的狀態
-        db.session.delete(oauth_state_obj)
-        # 同時清理其他過期狀態
+        # verify_state 方法已經處理了狀態的清理
+        # 只需要進行額外的過期狀態清理
         OAuthState.cleanup_expired()
-        db.session.commit()
         
         # 取得重定向URL
-        redirect_url = oauth_state_obj.redirect_url or '/'
         print(f"[DEBUG] Redirecting to: {redirect_url}")
         
         if wants_json:
