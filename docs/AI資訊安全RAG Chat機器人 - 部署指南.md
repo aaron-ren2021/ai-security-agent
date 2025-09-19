@@ -13,11 +13,31 @@ cd ai_security_rag_bot
 source venv/bin/activate
 
 # 3. 安裝依賴
-pip install -r requirements.txt
+uv sync
 
 # 4. 配置環境變數
 cp .env.example .env
 # 編輯 .env 檔案
+
+### Azure AI Search 設定
+
+若要啟用 Azure AI Search 文件索引與查詢功能，請在 `.env` 中新增下列設定：
+
+```bash
+# Azure AI Search
+AZURE_SEARCH_SERVICE_NAME=your-search-service
+AZURE_SEARCH_API_KEY=your-search-admin-key
+AZURE_SEARCH_INDEX_NAME=documents        # 可自訂
+
+# Azure OpenAI（用於向量嵌入）
+OPENAI_API_KEY=your-azure-openai-key
+OPENAI_API_BASE=https://your-openai-resource.openai.azure.com/
+OPENAI_API_VERSION=2024-11-20
+```
+
+> 未設定上述參數時，系統會自動回退至內建的模擬向量檢索，Azure Search 整合功能將被停用。
+
+啟用 Azure Search 後，前端首頁會顯示「Azure AI 搜尋」面板，可直接輸入關鍵字並透過語意/向量選項查詢雲端索引；若服務不可用，畫面會自動回退顯示本地向量搜尋結果。
 
 # 5. 啟動應用程式
 python src/main.py
@@ -129,7 +149,7 @@ python3.11 -m venv venv
 source venv/bin/activate
 
 # 安裝依賴
-pip install -r requirements.txt
+uv sync
 pip install gunicorn
 
 # 配置環境變數
@@ -322,7 +342,7 @@ git pull origin main
 
 # 更新依賴
 source venv/bin/activate
-pip install -r requirements.txt
+uv sync
 
 # 重啟服務
 sudo systemctl start ai-security-rag-bot
@@ -480,4 +500,3 @@ sudo nano /etc/fail2ban/jail.local
 ---
 
 **注意**：請根據實際環境調整配置參數，確保系統安全性和效能最佳化。
-

@@ -9,10 +9,9 @@ import hashlib
 from typing import List, Dict, Any, Optional, Tuple
 # import chromadb  # 暫時註解掉
 # from chromadb.config import Settings  # 暫時註解掉
-import openai
 # from sentence_transformers import SentenceTransformer  # 暫時註解掉
-import numpy as np
 from datetime import datetime
+from openai import AzureOpenAI
 
 class VectorizationService:
     """向量化服務類別"""
@@ -20,7 +19,10 @@ class VectorizationService:
     def __init__(self, 
                  chroma_persist_directory: str = "./chroma_db",
                  openai_api_key: Optional[str] = None,
-                 openai_api_base: Optional[str] = None):
+                 openai_api_base: Optional[str] = None,
+                 openai_client: Optional[AzureOpenAI] = None,
+                 openai_api_version: Optional[str] = None,
+                 openai_embedding_deployment: Optional[str] = None):
         """
         初始化向量化服務
         
@@ -38,11 +40,23 @@ class VectorizationService:
         # )
         self.chroma_client = None  # 暫時設為 None
         
-        # 設定OpenAI客戶端
-        if openai_api_key:
-            openai.api_key = openai_api_key
-        if openai_api_base:
-            openai.api_base = openai_api_base
+        # 設定 Azure OpenAI 客戶端
+        self._openai_client = None
+        self._embedding_deployment = openai_embedding_deployment or os.getenv('OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-ada-002')
+        self._api_version = openai_api_version or os.getenv('OPENAI_API_VERSION', '2024-02-15-preview')
+
+        if openai_client:
+            self._openai_client = openai_client
+        else:
+            api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
+            api_base = openai_api_base or os.getenv('OPENAI_API_BASE')
+
+            if api_key and api_base:
+                self._openai_client = AzureOpenAI(
+                    api_key=api_key,
+                    azure_endpoint=api_base,
+                    api_version=self._api_version
+                )
             
         # 初始化本地embedding模型作為備用 (暫時註解掉)
         # self.local_model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -85,14 +99,20 @@ class VectorizationService:
         Returns:
             向量列表
         """
+        target_model = model or self._embedding_deployment
+
+        if not self._openai_client:
+            print("Azure OpenAI 客戶端未配置，改用本地備援嵌入")
+            return self.get_embedding_local(text)
+
         try:
-            response = openai.Embedding.create(
+            response = self._openai_client.embeddings.create(
                 input=text,
-                model=model
+                model=target_model
             )
-            return response['data'][0]['embedding']
+            return response.data[0].embedding
         except Exception as e:
-            print(f"OpenAI embedding error: {e}")
+            print(f"Azure OpenAI embedding error: {e}")
             # 使用本地模型作為備用
             return self.get_embedding_local(text)
     
@@ -408,4 +428,3 @@ class MockCollection:
     def count(self):
         """返回集合中的文件數量"""
         return len(self.mock_data)
-

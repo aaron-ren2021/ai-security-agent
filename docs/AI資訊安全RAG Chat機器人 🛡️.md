@@ -44,7 +44,7 @@ git clone <repository-url>
 cd ai_security_rag_bot
 
 # 安裝依賴
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 2. OAuth設定
@@ -291,4 +291,3 @@ ai_security_rag_bot/
 🎉 **立即體驗企業級AI資訊安全助手！**
 
 具備OAuth認證、多Agent協作、RAG知識檢索的完整解決方案，為您的組織提供智慧化的資安管理體驗。
-

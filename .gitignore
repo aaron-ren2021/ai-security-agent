@@ -38,6 +38,16 @@ chroma_db/
 *.pid
 docker-compose.override.yml
 
+[tests/]
+htmlcov/
+build/
+instance/
+uploads/
+cookies.txt
+uv.lock
+pytest.ini
+requirements.txt
+# 你可以根據需要再補充其他檔案
 # Testing
 .pytest_cache/
 .coverage

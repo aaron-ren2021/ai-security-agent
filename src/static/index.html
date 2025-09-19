@@ -568,6 +568,250 @@
             border-color: #667eea;
         }
 
+        /* Azure Search 面板 */
+        .search-panel {
+            background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
+            border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.15);
+            margin: 20px 25px 10px;
+            padding: 18px 22px;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .search-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .search-header h3 {
+            color: #2d2f4d;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-status {
+            font-size: 12px;
+            color: #555;
+        }
+
+        .search-status.success {
+            color: #276749;
+        }
+
+        .search-status.warning {
+            color: #b7791f;
+        }
+
+        .search-status.error {
+            color: #c53030;
+        }
+
+        .search-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .search-controls input[type="text"] {
+            flex: 1;
+            min-width: 220px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid #d1d9ff;
+            background: rgba(255,255,255,0.9);
+            font-size: 14px;
+        }
+
+        .search-controls button {
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: none;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .search-controls button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(102, 126, 234, 0.3);
+        }
+
+        .search-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #4a5568;
+            background: rgba(102,126,234,0.12);
+            padding: 6px 10px;
+            border-radius: 20px;
+        }
+
+        .search-option input {
+            accent-color: #667eea;
+        }
+
+        .search-topk {
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid #d1d9ff;
+            background: rgba(255,255,255,0.9);
+            font-size: 13px;
+        }
+
+        .search-loading {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            color: #4c51bf;
+            margin-bottom: 10px;
+        }
+
+        .search-loading.active {
+            display: flex;
+        }
+
+        .search-spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        .search-results {
+            display: grid;
+            gap: 12px;
+        }
+
+        .search-result-card {
+            background: rgba(255,255,255,0.9);
+            border-radius: 12px;
+            padding: 14px 16px;
+            border: 1px solid rgba(224, 231, 255, 0.8);
+            box-shadow: 0 8px 20px rgba(102,126,234,0.1);
+        }
+
+        .search-result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 15px;
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        .search-score {
+            font-size: 12px;
+            color: #4c51bf;
+            background: rgba(102,126,234,0.12);
+            padding: 4px 8px;
+            border-radius: 999px;
+        }
+
+        .search-content {
+            font-size: 13px;
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 8px;
+            white-space: pre-wrap;
+        }
+
+        .search-highlights {
+            background: rgba(102, 126, 234, 0.08);
+            border-left: 3px solid #667eea;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            color: #3c366b;
+            font-size: 13px;
+        }
+
+        .search-highlights mark {
+            background: rgba(246, 224, 94, 0.6);
+            padding: 0 2px;
+        }
+
+        .search-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            font-size: 12px;
+            color: #5a67d8;
+        }
+
+        .search-meta span {
+            background: rgba(102,126,234,0.12);
+            padding: 4px 8px;
+            border-radius: 999px;
+        }
+
+        .search-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-actions button {
+            border: none;
+            background: rgba(102,126,234,0.15);
+            color: #373f98;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s ease;
+        }
+
+        .search-actions button:hover {
+            background: rgba(102,126,234,0.25);
+        }
+
+        .search-source-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(45, 55, 72, 0.08);
+            color: #2d3748;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+
+        .search-source-pill.azure {
+            background: rgba(102,126,234,0.15);
+            color: #2c328a;
+        }
+
+        .search-source-pill.fallback {
+            background: rgba(237,137,54,0.18);
+            color: #9c4221;
+        }
+
+        .search-empty {
+            text-align: center;
+            color: #5a5a7a;
+            padding: 18px 0;
+            font-size: 13px;
+        }
+
         /* 響應式設計 */
         @media (max-width: 768px) {
             .main-container {
@@ -727,6 +971,40 @@
                 <p>正在載入...</p>
             </div>
 
+            <div class="search-panel" id="searchPanel">
+                <div class="search-header">
+                    <h3>🔎 Azure AI 搜尋</h3>
+                    <div class="search-header-right">
+                        <span class="search-source-pill" id="searchSource">Azure AI Search</span>
+                        <span class="search-status" id="searchStatus">準備就緒</span>
+                    </div>
+                </div>
+                <div class="search-controls">
+                    <input type="text" id="searchInput" placeholder="輸入關鍵字快速搜尋知識庫...">
+                    <button id="searchButton">搜尋</button>
+                    <label class="search-option" title="啟用 Azure 語意排序">
+                        <input type="checkbox" id="semanticToggle" checked>
+                        語意搜尋
+                    </label>
+                    <label class="search-option" title="包含向量相似度計算">
+                        <input type="checkbox" id="vectorToggle" checked>
+                        向量相似度
+                    </label>
+                    <select id="searchTopK" class="search-topk" title="返回結果數量">
+                        <option value="3">Top 3</option>
+                        <option value="5" selected>Top 5</option>
+                        <option value="10">Top 10</option>
+                    </select>
+                </div>
+                <div class="search-loading" id="searchLoading">
+                    <div class="search-spinner"></div>
+                    <span>正在搜尋 Azure AI 索引...</span>
+                </div>
+                <div class="search-results" id="searchResults">
+                    <div class="search-empty">輸入關鍵字並按下搜尋，即可取得相關文件片段。</div>
+                </div>
+            </div>
+
             <div class="chat-messages" id="chatMessages">
                 <div class="message assistant">
                     <div class="message-avatar">🤖</div>
@@ -771,6 +1049,12 @@
                 this.currentAgent = 'smart_router';
                 this.sessionId = null;
                 this.currentUser = null;
+                this.searchOptions = {
+                    semantic: true,
+                    includeVectors: true,
+                    topK: 5
+                };
+                this.lastSearchQuery = '';
                 this.init();
             }
 
@@ -779,6 +1063,7 @@
                 this.bindEvents();
                 this.updateWelcomeTime();
                 this.autoResizeTextarea();
+                this.bootstrapSearch();
             }
 
             async checkAuth() {
@@ -1035,36 +1320,105 @@
                     });
                 });
 
-                document.getElementById('sendButton').addEventListener('click', () => {
-                    this.sendMessage();
-                });
-
-                document.getElementById('messageInput').addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
+                const sendButton = document.getElementById('sendButton');
+                if (sendButton) {
+                    sendButton.addEventListener('click', () => {
                         this.sendMessage();
-                    }
-                });
+                    });
+                }
 
-                document.getElementById('messageInput').addEventListener('input', (e) => {
-                    const sendBtn = document.getElementById('sendButton');
-                    const hasText = e.target.value.trim().length > 0;
-                    const isLoggedIn = this.currentUser !== null;
-                    sendBtn.disabled = !hasText || !isLoggedIn;
-                    
-                    // 更新按鈕提示
-                    if (!isLoggedIn) {
-                        sendBtn.title = '請先登入才能發送訊息';
-                    } else if (!hasText) {
-                        sendBtn.title = '請輸入訊息';
-                    } else {
-                        sendBtn.title = '發送訊息';
-                    }
-                });
+                const messageInput = document.getElementById('messageInput');
+                if (messageInput) {
+                    messageInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            this.sendMessage();
+                        }
+                    });
 
-                document.getElementById('logoutBtn').addEventListener('click', () => {
-                    this.logout();
-                });
+                    messageInput.addEventListener('input', (e) => {
+                        const sendBtn = document.getElementById('sendButton');
+                        if (!sendBtn) return;
+                        const hasText = e.target.value.trim().length > 0;
+                        const isLoggedIn = this.currentUser !== null;
+                        sendBtn.disabled = !hasText || !isLoggedIn;
+                        
+                        // 更新按鈕提示
+                        if (!isLoggedIn) {
+                            sendBtn.title = '請先登入才能發送訊息';
+                        } else if (!hasText) {
+                            sendBtn.title = '請輸入訊息';
+                        } else {
+                            sendBtn.title = '發送訊息';
+                        }
+                    });
+                }
+
+                const logoutBtn = document.getElementById('logoutBtn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', () => {
+                        this.logout();
+                    });
+                }
+
+                const searchButton = document.getElementById('searchButton');
+                if (searchButton) {
+                    searchButton.addEventListener('click', () => this.searchKnowledge());
+                }
+
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) {
+                    searchInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            this.searchKnowledge();
+                        }
+                    });
+                }
+
+                const semanticToggle = document.getElementById('semanticToggle');
+                if (semanticToggle) {
+                    semanticToggle.addEventListener('change', (e) => {
+                        this.searchOptions.semantic = e.target.checked;
+                        if (this.lastSearchQuery) {
+                            this.searchKnowledge(this.lastSearchQuery, { rerun: true });
+                        }
+                    });
+                }
+
+                const vectorToggle = document.getElementById('vectorToggle');
+                if (vectorToggle) {
+                    vectorToggle.addEventListener('change', (e) => {
+                        this.searchOptions.includeVectors = e.target.checked;
+                        if (this.lastSearchQuery) {
+                            this.searchKnowledge(this.lastSearchQuery, { rerun: true });
+                        }
+                    });
+                }
+
+                const topKSelect = document.getElementById('searchTopK');
+                if (topKSelect) {
+                    topKSelect.addEventListener('change', (e) => {
+                        const value = parseInt(e.target.value, 10);
+                        this.searchOptions.topK = Number.isNaN(value) ? 5 : value;
+                        if (this.lastSearchQuery) {
+                            this.searchKnowledge(this.lastSearchQuery, { rerun: true });
+                        }
+                    });
+                }
+
+                const searchResults = document.getElementById('searchResults');
+                if (searchResults) {
+                    searchResults.addEventListener('click', (event) => {
+                        const button = event.target.closest('[data-insert-content]');
+                        if (button) {
+                            const content = button.getAttribute('data-insert-content');
+                            if (content) {
+                                this.insertContentIntoChat(content);
+                            }
+                        }
+                    });
+                }
             }
 
             selectAgent(agentType) {
@@ -1149,6 +1503,276 @@
                     setTimeout(() => {
                         document.getElementById('sendButton').disabled = false;
                     }, 500);
+                }
+            }
+
+            async searchKnowledge(query, options = {}) {
+                const searchInput = document.getElementById('searchInput');
+                if (!searchInput) return;
+
+                const rawQuery = typeof query === 'string' ? query : searchInput.value;
+                const searchQuery = (rawQuery || '').trim();
+
+                if (!searchQuery) {
+                    this.setSearchStatus('請輸入搜尋關鍵字', 'warning');
+                    return;
+                }
+
+                if (!options.rerun) {
+                    searchInput.value = searchQuery;
+                }
+
+                this.lastSearchQuery = searchQuery;
+
+                const searchButton = document.getElementById('searchButton');
+                if (searchButton) {
+                    searchButton.disabled = true;
+                }
+
+                this.toggleSearchLoading(true);
+                this.setSearchStatus('搜尋中...', 'info');
+
+                try {
+                    const response = await fetch('/api/rag/search', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            query: searchQuery,
+                            top_k: this.searchOptions.topK,
+                            semantic_search: this.searchOptions.semantic,
+                            include_vectors: this.searchOptions.includeVectors
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (!data.success) {
+                        throw new Error(data.error || '搜尋失敗');
+                    }
+
+                    const results = Array.isArray(data.results) ? data.results : [];
+                    const fallback = data.fallback || null;
+
+                    const sourceLabel = this.renderSearchResults(results, fallback);
+
+                    if (results.length > 0) {
+                        this.setSearchStatus(`找到 ${results.length} 筆相關結果（${sourceLabel}）`, 'success');
+                    } else {
+                        this.setSearchStatus(`未找到相關文件（${sourceLabel}）`, 'warning');
+                    }
+                } catch (error) {
+                    console.error('搜尋失敗:', error);
+                    this.setSearchStatus(`搜尋失敗: ${error.message}`, 'error');
+                } finally {
+                    this.toggleSearchLoading(false);
+                    if (searchButton) {
+                        searchButton.disabled = false;
+                    }
+                }
+            }
+
+            toggleSearchLoading(isLoading) {
+                const loadingEl = document.getElementById('searchLoading');
+                if (!loadingEl) return;
+                loadingEl.classList.toggle('active', Boolean(isLoading));
+            }
+
+            setSearchStatus(message, status = 'info') {
+                const statusEl = document.getElementById('searchStatus');
+                if (!statusEl) return;
+
+                statusEl.textContent = message;
+                statusEl.classList.remove('success', 'warning', 'error');
+                if (status !== 'info') {
+                    statusEl.classList.add(status);
+                }
+            }
+
+            renderSearchResults(results, fallback) {
+                const container = document.getElementById('searchResults');
+                const statusLabel = fallback ? '向量知識庫回退' : 'Azure AI Search';
+                const pillLabel = fallback ? '向量知識庫 (回退)' : 'Azure AI Search';
+
+                if (!container) return statusLabel;
+
+                const sourceEl = document.getElementById('searchSource');
+                if (sourceEl) {
+                    sourceEl.classList.remove('azure', 'fallback');
+                    if (fallback) {
+                        sourceEl.classList.add('fallback');
+                    } else {
+                        sourceEl.classList.add('azure');
+                    }
+                    sourceEl.textContent = pillLabel;
+                }
+
+                container.innerHTML = '';
+
+                if (!results || results.length === 0) {
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'search-empty';
+                    emptyState.textContent = '未找到相關文件，請調整搜尋條件或使用不同關鍵字。';
+                    container.appendChild(emptyState);
+                    return statusLabel;
+                }
+
+                results.forEach((item, index) => {
+                    const metadata = this.parseMetadata(item?.metadata);
+                    const title = item?.title || metadata.title || `文件 ${index + 1}`;
+                    const fullContent = item?.content || metadata.content || '';
+                    const truncatedContent = this.truncateText(fullContent, 320);
+                    const highlights = Array.isArray(item?.highlights) ? item.highlights : [];
+                    const score = typeof item?.score === 'number' ? item.score.toFixed(3) : null;
+
+                    const card = document.createElement('div');
+                    card.className = 'search-result-card';
+
+                    const header = document.createElement('div');
+                    header.className = 'search-result-header';
+                    const titleEl = document.createElement('span');
+                    titleEl.textContent = title;
+                    header.appendChild(titleEl);
+
+                    if (score) {
+                        const scoreEl = document.createElement('span');
+                        scoreEl.className = 'search-score';
+                        scoreEl.textContent = `score ${score}`;
+                        header.appendChild(scoreEl);
+                    }
+
+                    card.appendChild(header);
+
+                    const contentEl = document.createElement('div');
+                    contentEl.className = 'search-content';
+                    contentEl.textContent = truncatedContent || '（此結果僅包含結構化資訊）';
+                    card.appendChild(contentEl);
+
+                    if (highlights.length) {
+                        const highlightEl = document.createElement('div');
+                        highlightEl.className = 'search-highlights';
+                        highlightEl.innerHTML = highlights
+                            .map(text => `<p>${this.formatHighlight(text)}</p>`)
+                            .join('');
+                        card.appendChild(highlightEl);
+                    }
+
+                    const metaEntries = Object.entries(metadata)
+                        .filter(([key, value]) => {
+                            if (['title', 'content'].includes(key)) return false;
+                            if (value === null || value === undefined) return false;
+                            if (typeof value === 'object') return false;
+                            return true;
+                        })
+                        .slice(0, 6);
+
+                    if (metaEntries.length) {
+                        const metaEl = document.createElement('div');
+                        metaEl.className = 'search-meta';
+                        metaEntries.forEach(([key, value]) => {
+                            const pill = document.createElement('span');
+                            pill.textContent = `${key}: ${value}`;
+                            metaEl.appendChild(pill);
+                        });
+                        card.appendChild(metaEl);
+                    }
+
+                    if (fullContent) {
+                        const actions = document.createElement('div');
+                        actions.className = 'search-actions';
+                        const insertBtn = document.createElement('button');
+                        insertBtn.textContent = '加入聊天提示';
+                        insertBtn.setAttribute('data-insert-content', fullContent);
+                        actions.appendChild(insertBtn);
+                        card.appendChild(actions);
+                    }
+
+                    container.appendChild(card);
+                });
+
+                return statusLabel;
+            }
+
+            parseMetadata(metadata) {
+                if (!metadata) return {};
+                if (typeof metadata === 'string') {
+                    try {
+                        return JSON.parse(metadata);
+                    } catch (error) {
+                        return {};
+                    }
+                }
+                return { ...metadata };
+            }
+
+            formatHighlight(text) {
+                if (!text) return '';
+                const escaped = this.escapeHTML(text);
+                return escaped.replace(/&lt;em&gt;/g, '<mark>').replace(/&lt;\/em&gt;/g, '</mark>');
+            }
+
+            escapeHTML(text) {
+                if (text === null || text === undefined) return '';
+                return String(text)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            truncateText(text, maxLength = 200) {
+                if (!text) return '';
+                const clean = String(text).trim();
+                if (clean.length <= maxLength) {
+                    return clean;
+                }
+                return `${clean.slice(0, maxLength)}...`;
+            }
+
+            insertContentIntoChat(content) {
+                const messageInput = document.getElementById('messageInput');
+                if (!messageInput) return;
+
+                const snippet = this.truncateText(content, 600);
+                const needsPrefix = messageInput.value.trim().length > 0;
+                const prefix = needsPrefix ? '\n\n[參考資料]\n' : '[參考資料]\n';
+                messageInput.value = `${messageInput.value}${prefix}${snippet}`;
+                messageInput.dispatchEvent(new Event('input'));
+                messageInput.focus();
+                this.setSearchStatus('已將搜尋結果加入訊息輸入框', 'success');
+            }
+
+            bootstrapSearch() {
+                const searchInput = document.getElementById('searchInput');
+                if (!searchInput) return;
+
+                const semanticToggle = document.getElementById('semanticToggle');
+                if (semanticToggle) {
+                    semanticToggle.checked = this.searchOptions.semantic;
+                }
+
+                const vectorToggle = document.getElementById('vectorToggle');
+                if (vectorToggle) {
+                    vectorToggle.checked = this.searchOptions.includeVectors;
+                }
+
+                const topKSelect = document.getElementById('searchTopK');
+                if (topKSelect) {
+                    topKSelect.value = String(this.searchOptions.topK);
+                }
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const autoQuery = urlParams.get('search');
+                if (autoQuery) {
+                    searchInput.value = autoQuery;
+                    this.searchKnowledge(autoQuery);
                 }
             }
 
@@ -1504,4 +2128,3 @@
     </div>
 </body>
 </html>
-

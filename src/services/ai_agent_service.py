@@ -4,10 +4,22 @@ AI Agent服務模組
 """
 
 import json
-import openai
+import os
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from src.services.vectorization_service import VectorizationService
+
+try:
+    from openai import AzureOpenAI
+except ImportError:  # pragma: no cover - handled in tests via mocks
+    AzureOpenAI = None  # type: ignore
+
+try:
+    from azure.identity import DefaultAzureCredential
+    from azure.ai.projects import AIProjectClient
+except ImportError:  # pragma: no cover - optional dependency
+    DefaultAzureCredential = None  # type: ignore
+    AIProjectClient = None  # type: ignore
 
 class SecurityAgent:
     """基礎安全Agent類別"""
@@ -17,7 +29,10 @@ class SecurityAgent:
                  description: str,
                  vectorization_service: VectorizationService,
                  openai_api_key: Optional[str] = None,
-                 openai_api_base: Optional[str] = None):
+                 openai_api_base: Optional[str] = None,
+                 openai_client: Optional[AzureOpenAI] = None,
+                 openai_api_version: Optional[str] = None,
+                 openai_deployment: Optional[str] = None):
         """
         初始化安全Agent
         
@@ -31,12 +46,41 @@ class SecurityAgent:
         self.name = name
         self.description = description
         self.vectorization_service = vectorization_service
+        self._openai_client = None
+        self._chat_deployment = os.getenv('OPENAI_CHAT_DEPLOYMENT', 'gpt-35-turbo')
+        self._api_version = os.getenv('OPENAI_API_VERSION', '2024-02-15-preview')
+
+        self._configure_openai_client(
+            openai_client=openai_client,
+            openai_api_key=openai_api_key,
+            openai_api_base=openai_api_base,
+            openai_api_version=openai_api_version,
+            openai_deployment=openai_deployment
+        )
+
+    def _configure_openai_client(self,
+                                 openai_client: Optional[AzureOpenAI] = None,
+                                 openai_api_key: Optional[str] = None,
+                                 openai_api_base: Optional[str] = None,
+                                 openai_api_version: Optional[str] = None,
+                                 openai_deployment: Optional[str] = None) -> None:
+        """初始化或設定 Azure OpenAI 客戶端"""
+        if openai_client:
+            self._openai_client = openai_client
+        else:
+            api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
+            api_base = openai_api_base or os.getenv('OPENAI_API_BASE')
+            api_version = openai_api_version or self._api_version
+
+            if api_key and api_base and AzureOpenAI:
+                self._openai_client = AzureOpenAI(
+                    api_key=api_key,
+                    azure_endpoint=api_base,
+                    api_version=api_version
+                )
         
-        # 設定OpenAI客戶端
-        if openai_api_key:
-            openai.api_key = openai_api_key
-        if openai_api_base:
-            openai.api_base = openai_api_base
+        if openai_deployment:
+            self._chat_deployment = openai_deployment
     
     def analyze(self, query: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -62,11 +106,16 @@ class SecurityAgent:
         Returns:
             相關知識列表
         """
-        return self.vectorization_service.search_similar(
-            collection_name=collection_name,
-            query=query,
-            n_results=n_results
-        )
+        try:
+            return self.vectorization_service.search_similar(
+                collection_name=collection_name,
+                query=query,
+                n_results=n_results
+            )
+        except Exception as exc:
+            # 捕獲向量化服務錯誤，確保主流程可繼續
+            print(f"Vectorization service error: {exc}")
+            return []
     def generate_response(self, 
                          prompt: str,
                          model: str = "gpt-3.5-turbo",
@@ -84,9 +133,14 @@ class SecurityAgent:
         Returns:
             生成的回應
         """
+        if not self._openai_client:
+            return "OpenAI 客戶端未正確配置，請確認環境變數設定。"
+
+        target_model = model or self._chat_deployment
+
         try:
-            response = openai.ChatCompletion.create(
-                model=model,
+            response = self._openai_client.chat.completions.create(
+                model=target_model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
                 temperature=temperature
@@ -181,6 +235,96 @@ class ThreatAnalysisAgent(SecurityAgent):
         confidence = max(0.0, 1.0 - avg_distance)
         
         return round(confidence, 2)
+
+
+class AzureAIAgentService:
+    """封裝 Azure AI Agent API，提供簡化操作介面"""
+
+    def __init__(self,
+                 endpoint: str,
+                 agent_id: str,
+                 credential: Optional[Any] = None,
+                 client: Optional[Any] = None):
+        self.endpoint = endpoint
+        self.agent_id = agent_id
+        self.credential = credential or (DefaultAzureCredential() if DefaultAzureCredential else None)
+
+        if client:
+            self.client = client
+        elif AIProjectClient and self.credential:
+            self.client = AIProjectClient(credential=self.credential, endpoint=endpoint)
+        else:
+            self.client = None
+
+        self.agent = None
+        if self.client:
+            self.agent = self.client.agents.get_agent(agent_id)
+
+    def create_thread(self) -> Optional[str]:
+        if not self.client:
+            return None
+        thread = self.client.agents.threads.create()
+        return getattr(thread, 'id', None)
+
+    def send_message(self, thread_id: str, content: str) -> Dict[str, Any]:
+        if not self.client:
+            return {
+                "id": None,
+                "content": content,
+                "role": "user"
+            }
+
+        message = self.client.agents.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=content
+        )
+
+        return {
+            "id": getattr(message, 'id', None),
+            "content": content,
+            "role": "user"
+        }
+
+    def analyze_with_azure_agent(self, query: str) -> Dict[str, Any]:
+        if not self.client:
+            return {
+                "agent": "Azure AI Agent",
+                "query": query,
+                "analysis": "Azure AI Agent 未正確配置",
+                "status": "unavailable"
+            }
+
+        thread_id = self.create_thread()
+        if not thread_id:
+            return {
+                "agent": "Azure AI Agent",
+                "query": query,
+                "analysis": "無法建立對話線程",
+                "status": "failed"
+            }
+
+        self.send_message(thread_id, query)
+        run = self.client.agents.runs.create_and_process(
+            thread_id=thread_id,
+            agent_id=self.agent_id
+        )
+
+        response_messages = self.client.agents.messages.list(thread_id=thread_id)
+        answer = ""
+        if response_messages:
+            latest = response_messages[0]
+            if getattr(latest, 'text_messages', None):
+                answer = latest.text_messages[0].text.value
+
+        return {
+            "agent": "Azure AI Agent",
+            "query": query,
+            "analysis": answer,
+            "status": getattr(run, 'status', 'unknown'),
+            "run_id": getattr(run, 'id', None),
+            "thread_id": thread_id
+        }
 
 class AccountSecurityAgent(SecurityAgent):
     """帳號安全Agent"""
@@ -406,7 +550,11 @@ class NetworkMonitoringAgent(SecurityAgent):
 class AIAgentOrchestrator:
     """AI Agent協調器"""
     
-    def __init__(self, vectorization_service: VectorizationService, **kwargs):
+    def __init__(self,
+                 vectorization_service: VectorizationService,
+                 azure_agent_config: Optional[Dict[str, str]] = None,
+                 azure_agent_service_cls: Optional[Any] = None,
+                 **kwargs):
         """
         初始化Agent協調器
         
@@ -421,6 +569,18 @@ class AIAgentOrchestrator:
             'account_security': AccountSecurityAgent(vectorization_service, **kwargs),
             'network_monitoring': NetworkMonitoringAgent(vectorization_service, **kwargs)
         }
+
+        self.azure_agent = None
+        if azure_agent_config:
+            service_cls = azure_agent_service_cls or AzureAIAgentService
+            endpoint = azure_agent_config.get('endpoint')
+            agent_id = azure_agent_config.get('agent_id')
+            if endpoint and agent_id and service_cls:
+                self.azure_agent = service_cls(
+                    endpoint=endpoint,
+                    agent_id=agent_id
+                )
+                self.agents['azure_ai'] = self.azure_agent
     
     def route_query(self, query: str) -> str:
         """
@@ -434,6 +594,12 @@ class AIAgentOrchestrator:
         """
         query_lower = query.lower()
         
+        # Azure AI Agent 關鍵字 (如有配置)
+        if self.azure_agent:
+            azure_keywords = ['azure', 'agent', 'copilot', 'assistant']
+            if any(keyword in query_lower for keyword in azure_keywords):
+                return 'azure_ai'
+
         # 威脅分析關鍵字
         threat_keywords = ['威脅', '攻擊', '惡意', '病毒', '釣魚', 'apt', 'malware', 'threat']
         if any(keyword in query_lower for keyword in threat_keywords):
@@ -479,12 +645,16 @@ class AIAgentOrchestrator:
         
         # 執行分析
         agent = self.agents[agent_name]
-        result = agent.analyze(query, context)
-        
+
+        if agent_name == 'azure_ai' and hasattr(agent, 'analyze_with_azure_agent'):
+            result = agent.analyze_with_azure_agent(query)
+        else:
+            result = agent.analyze(query, context)
+
         # 添加路由資訊
         result['routed_agent'] = agent_name
         result['available_agents'] = list(self.agents.keys())
-        
+
         return result
     
     def multi_agent_analysis(self, 
@@ -555,4 +725,3 @@ class AIAgentOrchestrator:
         # 使用威脅分析Agent生成綜合結果
         threat_agent = self.agents['threat_analysis']
         return threat_agent.generate_response(prompt)
-

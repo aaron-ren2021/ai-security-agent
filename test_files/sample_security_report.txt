@@ -1,0 +1,42 @@
+資訊安全弱點掃描報告
+
+掃描目標：Web應用程式安全測試
+掃描時間：2025-09-18
+掃描工具：Nessus Professional
+
+高風險漏洞：
+1. SQL Injection漏洞
+   - 位置：/login.php
+   - 描述：用戶輸入未經適當過濾就直接用於SQL查詢
+   - 風險等級：High
+   - CVE：CVE-2023-1234
+
+2. Cross-site Scripting (XSS)
+   - 位置：/search.php
+   - 描述：反射型XSS漏洞，可能導致會話劫持
+   - 風險等級：Medium
+   - CVE：CVE-2023-5678
+
+3. Remote Code Execution (RCE)
+   - 位置：/upload.php
+   - 描述：文件上傳功能存在代碼執行風險
+   - 風險等級：Critical
+   - CVE：CVE-2023-9999
+
+中風險漏洞：
+1. 未加密的敏感數據傳輸
+2. 弱密碼策略
+3. 缺少CSRF保護
+
+低風險漏洞：
+1. 信息洩露
+2. 目錄遍歷
+3. 不安全的HTTP方法
+
+建議修復措施：
+1. 實施參數化查詢防止SQL注入
+2. 對所有用戶輸入進行適當的編碼和過濾
+3. 加強文件上傳驗證機制
+4. 實施HTTPS加密傳輸
+5. 強化密碼策略
+6. 添加CSRF token保護

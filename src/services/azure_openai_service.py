@@ -4,10 +4,10 @@ Azure OpenAI服務模組
 """
 
 import os
-import openai
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
+from openai import AzureOpenAI
 
 class AzureOpenAIService:
     """Azure OpenAI服務類別"""
@@ -26,20 +26,19 @@ class AzureOpenAIService:
         """
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         self.api_base = api_base or os.getenv('OPENAI_API_BASE')
-        self.api_version = api_version
-        
-        # 設定OpenAI客戶端
-        if self.api_key:
-            openai.api_key = self.api_key
-        if self.api_base:
-            openai.api_base = self.api_base
-        
-        openai.api_type = "azure"
-        openai.api_version = self.api_version
-        
-        # 預設模型配置
-        self.default_chat_model = "gpt-35-turbo"  # Azure部署名稱
-        self.default_embedding_model = "text-embedding-ada-002"  # Azure部署名稱
+        self.api_version = api_version or os.getenv('OPENAI_API_VERSION', '2024-02-15-preview')
+
+        # 預設模型配置（Azure 部署名稱）
+        self.default_chat_model = os.getenv('OPENAI_CHAT_DEPLOYMENT', 'gpt-35-turbo')
+        self.default_embedding_model = os.getenv('OPENAI_EMBEDDING_DEPLOYMENT', 'text-embedding-ada-002')
+
+        self.client: Optional[AzureOpenAI] = None
+        if self.api_key and self.api_base:
+            self.client = AzureOpenAI(
+                api_key=self.api_key,
+                azure_endpoint=self.api_base,
+                api_version=self.api_version
+            )
     
     def test_connection(self) -> Dict[str, Any]:
         """
@@ -48,10 +47,29 @@ class AzureOpenAIService:
         Returns:
             測試結果
         """
+        if not self.client:
+            error_message = "Azure OpenAI client 未正確配置"
+            timestamp = datetime.now().isoformat()
+            return {
+                "timestamp": timestamp,
+                "api_base": self.api_base,
+                "api_version": self.api_version,
+                "chat_completion": {
+                    "status": "failed",
+                    "model": self.default_chat_model,
+                    "error": error_message
+                },
+                "embedding": {
+                    "status": "failed",
+                    "model": self.default_embedding_model,
+                    "error": error_message
+                }
+            }
+
         try:
             # 測試聊天完成
-            response = openai.ChatCompletion.create(
-                engine=self.default_chat_model,
+            response = self.client.chat.completions.create(
+                model=self.default_chat_model,
                 messages=[{"role": "user", "content": "Hello, this is a connection test."}],
                 max_tokens=10,
                 temperature=0
@@ -72,8 +90,8 @@ class AzureOpenAIService:
         
         try:
             # 測試嵌入
-            embedding_response = openai.Embedding.create(
-                engine=self.default_embedding_model,
+            embedding_response = self.client.embeddings.create(
+                model=self.default_embedding_model,
                 input="This is a test for embedding."
             )
             
@@ -117,6 +135,14 @@ class AzureOpenAIService:
         Returns:
             生成結果
         """
+        if not self.client:
+            return {
+                "success": False,
+                "error": "Azure OpenAI client 未正確配置",
+                "model": model or self.default_chat_model,
+                "timestamp": datetime.now().isoformat()
+            }
+
         try:
             model = model or self.default_chat_model
             
@@ -131,8 +157,8 @@ class AzureOpenAIService:
             formatted_messages.extend(messages)
             
             # 呼叫Azure OpenAI API
-            response = openai.ChatCompletion.create(
-                engine=model,
+            response = self.client.chat.completions.create(
+                model=model,
                 messages=formatted_messages,
                 max_tokens=max_tokens,
                 temperature=temperature
@@ -171,11 +197,19 @@ class AzureOpenAIService:
         Returns:
             嵌入結果
         """
+        if not self.client:
+            return {
+                "success": False,
+                "error": "Azure OpenAI client 未正確配置",
+                "model": model or self.default_embedding_model,
+                "timestamp": datetime.now().isoformat()
+            }
+
         try:
             model = model or self.default_embedding_model
-            
-            response = openai.Embedding.create(
-                engine=model,
+
+            response = self.client.embeddings.create(
+                model=model,
                 input=text
             )
             
@@ -263,7 +297,7 @@ class AzureOpenAIService:
             "embedding_model": self.default_embedding_model,
             "api_version": self.api_version,
             "api_base": self.api_base,
-            "configured": bool(self.api_key and self.api_base)
+            "configured": bool(self.client)
         }
     
     def update_model_config(self, 
@@ -293,4 +327,3 @@ class AzureOpenAIService:
             },
             "timestamp": datetime.now().isoformat()
         }
-
