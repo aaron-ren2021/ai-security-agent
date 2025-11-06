@@ -24,7 +24,8 @@ from azure.ai.agents.models import ListSortOrder
 
 # Azure AI Search 整合
 from src.services.stable.azure_ai_search import AzureAISearchExperimental, AzureSearchConfig
-from src.tools.azure_aisearch_tool import azure_search_tool, AzureSearchToolInput, AzureSearchToolOutput
+from src.tools.azure_aisearch_tool import azure_search_tool
+from src.tools.postgres_hybrid_search import PostgresHybridSearch, postgres_hybrid_search_tool
 
 load_dotenv()
 
@@ -40,6 +41,36 @@ if missing:
 AZURE_SEARCH_SERVICE_NAME = os.getenv("AZURE_SEARCH_SERVICE_NAME")
 AZURE_SEARCH_API_KEY = os.getenv("AZURE_SEARCH_API_KEY")
 AZURE_SEARCH_INDEX_NAME = os.getenv("AZURE_SEARCH_INDEX_NAME", "documents")
+
+# Postgres Hybrid Search 環境變數（可選）
+POSTGRES_DB_URL = os.getenv("POSTGRES_HYBRID_DB_URL") or os.getenv("POSTGRES_DB_URL")
+POSTGRES_OPENAI_API_KEY = os.getenv("POSTGRES_HYBRID_OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+POSTGRES_EMBEDDING_MODEL = os.getenv("POSTGRES_HYBRID_EMBEDDING_MODEL", "text-embedding-3-large")
+POSTGRES_TS_LANGUAGE = os.getenv("POSTGRES_HYBRID_TS_LANGUAGE", "chinese")
+
+def _float_env(var_name: str, default: float) -> float:
+    raw = os.getenv(var_name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        print(f"⚠️ 環境變數 {var_name} 不是合法浮點數，改用預設值 {default}")
+        return default
+
+def _int_env(var_name: str, default: int) -> int:
+    raw = os.getenv(var_name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        print(f"⚠️ 環境變數 {var_name} 不是合法整數，改用預設值 {default}")
+        return default
+
+POSTGRES_VECTOR_WEIGHT = _float_env("POSTGRES_HYBRID_VECTOR_WEIGHT", 0.6)
+POSTGRES_TEXT_WEIGHT = _float_env("POSTGRES_HYBRID_TEXT_WEIGHT", 0.4)
+POSTGRES_VECTOR_LIMIT = _int_env("POSTGRES_HYBRID_VECTOR_LIMIT", 20)
 
 # ========== 規則與常數 ==========
 ROUTER_INSTRUCTIONS = os.getenv(
@@ -127,6 +158,25 @@ if AZURE_SEARCH_SERVICE_NAME:
 else:
     print("ℹ️ 未設定 AZURE_SEARCH_SERVICE_NAME，跳過 Azure AI Search 初始化")
 
+postgres_search_client: Optional[PostgresHybridSearch] = None
+if POSTGRES_DB_URL and POSTGRES_OPENAI_API_KEY:
+    try:
+        postgres_search_client = PostgresHybridSearch(
+            POSTGRES_DB_URL,
+            POSTGRES_OPENAI_API_KEY,
+            embedding_model=POSTGRES_EMBEDDING_MODEL,
+            ts_language=POSTGRES_TS_LANGUAGE,
+            default_vector_weight=POSTGRES_VECTOR_WEIGHT,
+            default_text_weight=POSTGRES_TEXT_WEIGHT,
+            default_vector_limit=POSTGRES_VECTOR_LIMIT,
+        )
+        print("✓ Postgres Hybrid Search 已初始化")
+    except Exception as e:
+        print(f"⚠️ Postgres Hybrid Search 初始化失敗: {e}")
+        postgres_search_client = None
+else:
+    print("ℹ️ 未設定 Postgres Hybrid Search 相關環境，跳過初始化")
+
 # ========== Azure 呼叫封裝（供下游 Agent 的 tool 使用） ==========
 def _call_azure_agent(agent_type: str, text: str, thread_id: Optional[str] = None, search_results: Optional[List[Dict[str, Any]]] = None) -> SpecialistResult:
     """呼叫 Azure Agent，可選擇性傳入搜尋結果以增強回應。"""
@@ -185,30 +235,39 @@ def _call_azure_agent(agent_type: str, text: str, thread_id: Optional[str] = Non
 # ========== 下游：PydanticAI 原生專家 Agents（各自有 tool 直呼 Azure） ==========
 def make_specialist_agent(name: str) -> Agent[None, SpecialistResult]:
     tools = []
-    
-    # 基本 Azure Agent 調用工具
-    async def invoke_backend(_: RunContext[None], text: str, thread_id: Optional[str] = None) -> SpecialistResult:
-        return _call_azure_agent(name, text, thread_id=thread_id)
+    capabilities: List[str] = ["呼叫後端 Azure Agent 處理複雜分析"]
     
     # 添加 Azure AI Search 工具（如果可用）
     if search_client:
         search_tool = azure_search_tool(
             search_client,
             name=f"{name}_search",
-            description=f"查詢 {name} 相關的知識庫文檔，用於增強回答準確性。"
+            description=f"查詢 {name} 相關的 Azure AI Search 知識庫文檔，用於增強回答準確性。"
         )
         tools.append(search_tool)
+        capabilities.append("查詢 Azure AI Search 知識庫以獲得支援資訊")
+    
+    # 添加 Postgres Hybrid Search 工具（如果可用）
+    if postgres_search_client:
+        pg_tool = postgres_hybrid_search_tool(
+            postgres_search_client,
+            name=f"{name}_postgres_search",
+            description="查詢 Postgres 混合搜尋索引，取得企業知識文件。"
+        )
+        tools.append(pg_tool)
+        capabilities.append("查詢 Postgres 混合搜尋索引以取得企業知識")
+    
+    capability_lines = "\n        ".join(f"{idx + 1}. {cap}" for idx, cap in enumerate(capabilities))
     
     agent = Agent(
         base_model,
         output_type=SpecialistResult,
         tools=tools,
         instructions=f"""你是 {name} 專家代理。你有以下能力：
-        1. 呼叫後端 Azure Agent 處理複雜分析
-        2. {'查詢知識庫文檔以增強回答' if search_client else '直接回應查詢'}
+        {capability_lines}
         
         處理流程：
-        1. 如果需要參考文檔或最佳實踐，先使用搜尋工具
+        1. 如果需要參考文檔或最佳實踐，先使用可用的搜尋工具
         2. 結合搜尋結果和你的專業知識
         3. 必要時調用後端 Azure Agent 進行深度分析
         4. 提供結構化的專業回應"""
@@ -303,10 +362,36 @@ class Coordinator:
                 
                 if hits:
                     search_results = hits
-                    print(f"🔍 為 {target} 找到 {len(hits)} 個相關文檔")
+                    print(f"🔍 Azure Search 為 {target} 找到 {len(hits)} 個相關文檔")
             
             except Exception as e:
-                print(f"⚠️ 知識搜尋失敗: {e}")
+                print(f"⚠️ Azure 知識搜尋失敗: {e}")
+        
+        if postgres_search_client:
+            try:
+                pg_hits = postgres_search_client.hybrid_search(
+                    query=text,
+                    top_k=3,
+                    language=None,
+                )
+                if pg_hits:
+                    formatted = [
+                        {
+                            "id": str(hit.id),
+                            "title": hit.title,
+                            "content": hit.content,
+                            "score": float(hit.hybrid_score),
+                            "metadata": {"source": "postgres_hybrid"},
+                        }
+                        for hit in pg_hits
+                    ]
+                    if search_results:
+                        search_results.extend(formatted)
+                    else:
+                        search_results = formatted
+                    print(f"🔍 Postgres Hybrid Search 為 {target} 找到 {len(pg_hits)} 個相關文檔")
+            except Exception as e:
+                print(f"⚠️ Postgres Hybrid Search 失敗: {e}")
         
         # 呼叫 Azure 後端，傳入搜尋結果
         return _call_azure_agent(target, text, thread_id=thread_id, search_results=search_results)

@@ -10,6 +10,7 @@ from datetime import datetime
 from src.models.auth import db
 from src.routes.rag_api import rag_bp
 from src.routes.auth_api import auth_bp
+from src.routes.ag_ui_api import ag_ui_bp
 
 # 載入環境變數
 load_dotenv()
@@ -25,6 +26,7 @@ CORS(app, origins="*", allow_headers="*", methods="*")
 # 註冊Blueprint
 app.register_blueprint(rag_bp, url_prefix='/api/rag')
 app.register_blueprint(auth_bp, url_prefix='/auth')
+app.register_blueprint(ag_ui_bp, url_prefix='/api/agui')
 
 # 簡化的資料庫配置 - 使用專案根目錄的 SQLite
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
@@ -109,5 +111,4 @@ def serve(path):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5002, debug=True)
-
 
