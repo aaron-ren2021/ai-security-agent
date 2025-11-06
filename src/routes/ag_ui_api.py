@@ -60,6 +60,65 @@ def _chunk_text(text: str, chunk_size: int = 400) -> Iterable[str]:
 		yield text[start : start + chunk_size]
 
 
+def _build_retrieval_snapshot(raw_result: Dict[str, any], multi_agent: bool, selected_agent: Optional[str], overridden: bool) -> Optional[Dict[str, any]]:
+	"""萃取可視化的檢索 / 來源資訊供前端快速渲染。
+
+	返回格式:
+	{
+	  'mode': 'single' | 'multi',
+	  'agent': 'threat_analysis',
+	  'overridden': True/False,
+	  'sources': [ { 'agent': 'threat_analysis', 'type': 'relevant_threats', 'items': [...] }, ... ]
+	}
+	"""
+	if not isinstance(raw_result, dict):
+		return None
+
+	if multi_agent:
+		results = raw_result.get('multi_agent_results')
+		if not isinstance(results, dict):
+			return None
+		sources = []
+		for agent_name, agent_payload in results.items():
+			if not isinstance(agent_payload, dict):
+				continue
+			for key in ('relevant_threats', 'relevant_rules', 'relevant_knowledge'):
+				if key in agent_payload and agent_payload[key]:
+					sources.append({
+						'agent': agent_name,
+						'type': key,
+						'count': len(agent_payload.get(key, []) or []),
+						'items': agent_payload.get(key, [])
+					})
+		if not sources:
+			return None
+		return {
+			'mode': 'multi',
+			'agent': selected_agent,
+			'overridden': overridden,
+			'sources': sources,
+		}
+	else:
+		# 單一 agent 結果
+		sources = []
+		for key in ('relevant_threats', 'relevant_rules', 'relevant_knowledge'):
+			if key in raw_result and raw_result[key]:
+				sources.append({
+					'agent': raw_result.get('routed_agent') or selected_agent,
+					'type': key,
+					'count': len(raw_result.get(key, []) or []),
+					'items': raw_result.get(key, [])
+				})
+		if not sources:
+			return None
+		return {
+			'mode': 'single',
+			'agent': raw_result.get('routed_agent') or selected_agent,
+			'overridden': overridden,
+			'sources': sources,
+		}
+
+
 @ag_ui_bp.route("/agentic_chat", methods=["POST"])
 def agentic_chat():
 	"""
@@ -83,6 +142,18 @@ def agentic_chat():
 	query = _latest_user_message(run_input)
 	if not query:
 		return Response("需要使用者訊息才能執行對話流程", status=400, mimetype="text/plain")
+
+	# 支援前端以 /agent <name> 指令臨時覆寫 agent，例如: /agent threat_analysis 最近的釣魚攻擊趨勢
+	if query.startswith("/agent"):
+		parts = query.split()
+		if len(parts) >= 2:
+			selected_agent = parts[1]
+			# 移除指令後的真正查詢內容；若沒有則給一個 placeholder
+			query = " ".join(parts[2:]) or "請進行分析"
+			# 也把覆寫資訊放入 context 供後續紀錄
+			context_override_flag = True
+	else:
+		context_override_flag = False
 
 	context = _build_context(run_input)
 	selected_agent = context.get("agent")
@@ -117,13 +188,29 @@ def agentic_chat():
 			yield encoder.encode(RunErrorEvent(message=str(exc)))
 			return
 
-		yield encoder.encode(TextMessageStartEvent(message_id=message_id, role="assistant"))
+		# 在主回答開始前，先傳送一個檢索快照事件，方便前端顯示「引用來源 / 風險資訊」等
+		try:
+			retrieval_payload = _build_retrieval_snapshot(raw_result, multi_agent=multi_agent, selected_agent=selected_agent, overridden=context_override_flag)
+			if retrieval_payload:
+				# 用特殊前綴標記，前端可攔截 [[RETRIEVAL_SNAPSHOT]] 進行 JSON 解析
+				marker = "[[RETRIEVAL_SNAPSHOT]]" + json.dumps(retrieval_payload, ensure_ascii=False)
+				yield encoder.encode(TextMessageStartEvent(message_id=message_id, role="assistant"))
+				yield encoder.encode(TextMessageContentEvent(message_id=message_id, delta=marker))
+				# 後續的主回答再使用新的 message id，避免混淆
+				message_id_main = str(uuid.uuid4())
+				yield encoder.encode(TextMessageStartEvent(message_id=message_id_main, role="assistant"))
+				for chunk in _chunk_text(response_text):
+					yield encoder.encode(TextMessageContentEvent(message_id=message_id_main, delta=chunk))
+				yield encoder.encode(TextMessageEndEvent(message_id=message_id_main))
+				yield encoder.encode(RunFinishedEvent(thread_id=thread_id, run_id=run_id, result=raw_result))
+				return
+		except Exception:  # 靜默忽略快照錯誤，退回原本流程
+			pass
 
+		yield encoder.encode(TextMessageStartEvent(message_id=message_id, role="assistant"))
 		for chunk in _chunk_text(response_text):
 			yield encoder.encode(TextMessageContentEvent(message_id=message_id, delta=chunk))
-
 		yield encoder.encode(TextMessageEndEvent(message_id=message_id))
-
 		yield encoder.encode(RunFinishedEvent(thread_id=thread_id, run_id=run_id, result=raw_result))
 
 	headers = {
