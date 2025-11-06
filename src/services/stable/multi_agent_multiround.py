@@ -55,7 +55,8 @@ def _float_env(var_name: str, default: float) -> float:
     try:
         return float(raw)
     except ValueError:
-        print(f"⚠️ 環境變數 {var_name} 不是合法浮點數，改用預設值 {default}")
+        import logging
+        logging.warning(f"Environment variable {var_name} is not a valid float, using default value {default}")
         return default
 
 def _int_env(var_name: str, default: int) -> int:
@@ -64,7 +65,8 @@ def _int_env(var_name: str, default: int) -> int:
         return default
     try:
         return int(raw)
-    except ValueError:
+        import logging
+        logging.warning(f"Environment variable {var_name} is not a valid integer, using default value {default}")
         print(f"⚠️ 環境變數 {var_name} 不是合法整數，改用預設值 {default}")
         return default
 
@@ -233,7 +235,6 @@ def _call_azure_agent(agent_type: str, text: str, thread_id: Optional[str] = Non
         )
 
 # ========== 下游：PydanticAI 原生專家 Agents（各自有 tool 直呼 Azure） ==========
-def make_specialist_agent(name: str) -> Agent[None, SpecialistResult]:
     tools = []
     capabilities: List[str] = ["呼叫後端 Azure Agent 處理複雜分析"]
     
@@ -273,10 +274,12 @@ def make_specialist_agent(name: str) -> Agent[None, SpecialistResult]:
         4. 提供結構化的專業回應"""
     )
     
+    # 已將 invoke_backend 替換為 invoke_backend_tool，確保沒有遺留對 invoke_backend 的引用
     @agent.tool
     async def invoke_backend_tool(_: RunContext[None], text: str, thread_id: Optional[str] = None) -> SpecialistResult:
         return _call_azure_agent(name, text, thread_id=thread_id)
 
+    return agent
     return agent
 
 threat_agent   = make_specialist_agent("threat_analysis")
@@ -380,7 +383,7 @@ class Coordinator:
                             "id": str(hit.id),
                             "title": hit.title,
                             "content": hit.content,
-                            "score": float(hit.hybrid_score),
+                            "score": float(getattr(hit, "hybrid_score", 0.0)),
                             "metadata": {"source": "postgres_hybrid"},
                         }
                         for hit in pg_hits

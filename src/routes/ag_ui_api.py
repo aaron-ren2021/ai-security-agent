@@ -77,12 +77,17 @@ def agentic_chat():
 
 	try:
 		run_input = RunAgentInput.model_validate(payload)
-	except Exception as exc:  # pragma: no cover - defensive parsing
+	except (TypeError, ValueError) as exc:  # handle basic type errors
 		return Response(f"Invalid AG-UI payload: {exc}", status=400, mimetype="text/plain")
+	except ImportError:
+		# Defensive: If Pydantic is not available, fallback to generic error
+		return Response("Pydantic is not available for validation", status=500, mimetype="text/plain")
+	except Exception as exc:  # pragma: no cover - fallback for unexpected errors
+		return Response(f"Unexpected error during payload validation: {exc}", status=400, mimetype="text/plain")
 
 	query = _latest_user_message(run_input)
 	if not query:
-		return Response("需要使用者訊息才能執行對話流程", status=400, mimetype="text/plain")
+		return Response("A user message is required to proceed with the chat flow", status=400, mimetype="text/plain")
 
 	context = _build_context(run_input)
 	selected_agent = context.get("agent")
@@ -108,9 +113,12 @@ def agentic_chat():
 			if multi_agent:
 				raw_result = orchestrator.multi_agent_analysis(query, context=context)
 				response_text = raw_result.get("synthesis") or json.dumps(raw_result, ensure_ascii=False)
-			else:
-				raw_result = orchestrator.analyze_query(query, context=context, agent_name=selected_agent)
-				response_text = raw_result.get("analysis") or raw_result.get("response")
+		except Exception as exc:  # pragma: no cover - keep streaming on failure
+			import traceback
+			print("Exception in agentic_chat:", exc)
+			traceback.print_exc()
+			yield encoder.encode(RunErrorEvent(message=str(exc)))
+			return
 				if not response_text:
 					response_text = json.dumps(raw_result, ensure_ascii=False)
 		except Exception as exc:  # pragma: no cover - keep streaming on failure
