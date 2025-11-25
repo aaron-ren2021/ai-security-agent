@@ -1,7 +1,7 @@
 import json
 import re
 from typing import List
-from flask import Response
+from starlette.responses import Response
 from ag_ui.core.types import RunAgentInput, Message, UserMessage
 
 # pytest 標記為 unit
@@ -66,4 +66,3 @@ def test_awp_sse_event_sequence(client):
     # 合併 chunk 確保原始文字被重組 (簡化檢查: 至少包含前10字)
     reconstructed = ''.join(contents)
     assert payload['messages'][0]['content'][:10] in reconstructed
-

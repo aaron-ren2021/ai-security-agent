@@ -1,39 +1,47 @@
 from __future__ import annotations
+
 import os
 from typing import Optional
+
 from fastapi import APIRouter, HTTPException
-from src.services.vectorization_service import VectorizationService
+
 from src.services.ai_agent_service import AIAgentOrchestrator
 from src.services.azure_openai_service import AzureOpenAIService
+from src.services.vectorization_service import VectorizationService
+from src.services.postgres_hybrid_service import PostgresHybridSearchService
+
 from ..models.schemas import (
-    ChatRequest,
-    KnowledgeAddRequest,
-    KnowledgeSearchRequest,
-    AzureModelUpdateRequest,
     AzureChatRequest,
     AzureEmbeddingRequest,
+    AzureModelUpdateRequest,
+    ChatRequest,
+    DocumentSearchRequest,
+    KnowledgeAddRequest,
+    KnowledgeSearchRequest,
 )
 
 router = APIRouter(prefix="/api/rag", tags=["rag"])
 
 vectorization_service: Optional[VectorizationService] = None
-a_i_orchestrator: Optional[AIAgentOrchestrator] = None
+ai_orchestrator: Optional[AIAgentOrchestrator] = None
 azure_openai_service: Optional[AzureOpenAIService] = None
 
+
 def init_vector_and_agents():
-    global vectorization_service, a_i_orchestrator
+    global vectorization_service, ai_orchestrator
     if vectorization_service is None:
         vectorization_service = VectorizationService(
             chroma_persist_directory="./chroma_db",
-            openai_api_key=os.getenv('OPENAI_API_KEY'),
-            openai_api_base=os.getenv('OPENAI_API_BASE')
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            openai_api_base=os.getenv("OPENAI_API_BASE"),
         )
-    if a_i_orchestrator is None:
-        a_i_orchestrator = AIAgentOrchestrator(
+    if ai_orchestrator is None:
+        ai_orchestrator = AIAgentOrchestrator(
             vectorization_service=vectorization_service,
-            openai_api_key=os.getenv('OPENAI_API_KEY'),
-            openai_api_base=os.getenv('OPENAI_API_BASE')
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            openai_api_base=os.getenv("OPENAI_API_BASE"),
         )
+
 
 def init_azure_openai():
     global azure_openai_service
@@ -50,9 +58,9 @@ async def rag_chat(req: ChatRequest):
     if not req.query:
         raise HTTPException(status_code=400, detail='Query is required')
     if req.multi_agent:
-        result = a_i_orchestrator.multi_agent_analysis(req.query, req.context or {})
+        result = ai_orchestrator.multi_agent_analysis(req.query, req.context or {})
     else:
-        result = a_i_orchestrator.analyze_query(req.query, req.context or {}, req.agent)
+        result = ai_orchestrator.analyze_query(req.query, req.context or {}, req.agent)
     return {'success': True, 'result': result}
 
 @router.post('/knowledge/add')
@@ -99,7 +107,7 @@ async def knowledge_stats(collection: Optional[str] = None):
 async def list_agents():
     init_vector_and_agents()
     agents_info = {}
-    for name, agent in a_i_orchestrator.agents.items():
+    for name, agent in ai_orchestrator.agents.items():
         agents_info[name] = {'name': agent.name, 'description': agent.description}
     return {'success': True, 'agents': agents_info}
 
@@ -108,7 +116,7 @@ async def analyze_threat(req: ChatRequest):
     init_vector_and_agents()
     if not req.query:
         raise HTTPException(status_code=400, detail='Query is required')
-    result = a_i_orchestrator.analyze_query(req.query, req.context or {}, 'threat_analysis')
+    result = ai_orchestrator.analyze_query(req.query, req.context or {}, 'threat_analysis')
     return {'success': True, 'result': result}
 
 @router.post('/analyze/account')
@@ -116,7 +124,7 @@ async def analyze_account(req: ChatRequest):
     init_vector_and_agents()
     if not req.query:
         raise HTTPException(status_code=400, detail='Query is required')
-    result = a_i_orchestrator.analyze_query(req.query, req.context or {}, 'account_security')
+    result = ai_orchestrator.analyze_query(req.query, req.context or {}, 'account_security')
     return {'success': True, 'result': result}
 
 @router.post('/analyze/network')
@@ -124,7 +132,7 @@ async def analyze_network(req: ChatRequest):
     init_vector_and_agents()
     if not req.query:
         raise HTTPException(status_code=400, detail='Query is required')
-    result = a_i_orchestrator.analyze_query(req.query, req.context or {}, 'network_monitoring')
+    result = ai_orchestrator.analyze_query(req.query, req.context or {}, 'network_monitoring')
     return {'success': True, 'result': result}
 
 @router.post('/initialize')
@@ -159,6 +167,32 @@ async def initialize_knowledge_base():
             except Exception as e:
                 results[collection_name].append({'error': str(e), 'status': 'failed'})
     return {'success': True, 'message': 'Knowledge base initialized', 'results': results}
+
+@router.post('/search')
+async def rag_search(req: DocumentSearchRequest):
+    init_vector_and_agents()
+    if not req.query:
+        raise HTTPException(status_code=400, detail='Query is required')
+    service = PostgresHybridSearchService.get_instance()
+    if not service:
+        raise HTTPException(
+            status_code=503,
+            detail="Postgres hybrid search service is not configured. Set POSTGRES_HYBRID_DB_URL."
+        )
+    try:
+        results = service.search_query(
+            req.query,
+            top_k=req.top_k
+        )
+        total_results = len(results)
+        return {
+            'success': True,
+            'results': [result.model_dump() for result in results],
+            'total_results': total_results,
+            'fallback': None
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Postgres search failed: {exc}") from exc
 
 # Azure endpoints
 @router.get('/azure/test')

@@ -62,7 +62,7 @@ class TestDocumentAnswering:
     @pytest.mark.unit
     def test_chat_endpoint_basic(self, client):
         """測試基本聊天端點"""
-        with patch('src.routes.rag_api.ai_orchestrator') as mock_orchestrator:
+        with patch('src.routers.rag_router.ai_orchestrator') as mock_orchestrator:
             mock_orchestrator.analyze_query.return_value = {
                 "answer": "這是一個SQL注入漏洞，建議使用參數化查詢進行修復。",
                 "confidence": 0.95,
@@ -99,7 +99,7 @@ class TestDocumentAnswering:
     @pytest.mark.integration
     def test_knowledge_add_and_search_flow(self, client, sample_security_document):
         """測試知識新增和搜尋流程"""
-        with patch('src.routes.rag_api.vectorization_service') as mock_vec_service:
+        with patch('src.routers.rag_router.vectorization_service') as mock_vec_service:
             # 模擬文件新增成功
             mock_vec_service.add_document.return_value = "doc_123"
             
@@ -140,7 +140,7 @@ class TestDocumentAnswering:
     @pytest.mark.integration
     def test_complex_security_query(self, client):
         """測試複雜安全查詢"""
-        with patch('src.routes.rag_api.ai_orchestrator') as mock_orchestrator:
+        with patch('src.routers.rag_router.ai_orchestrator') as mock_orchestrator:
             mock_orchestrator.analyze_query.return_value = {
                 "answer": """
                 根據您的描述，這可能是一個分散式拒絕服務攻擊（DDoS）。建議採取以下措施：
@@ -189,7 +189,7 @@ class TestDocumentAnswering:
             "%3Cscript%3E"  # URL encoded script
         ]
         
-        with patch('src.routes.rag_api.ai_orchestrator') as mock_orchestrator:
+        with patch('src.routers.rag_router.ai_orchestrator') as mock_orchestrator:
             mock_orchestrator.analyze_query.return_value = {
                 "answer": "查詢已安全處理",
                 "confidence": 0.9
@@ -214,7 +214,7 @@ class TestDocumentAnswering:
         """測試響應時間性能"""
         import time
         
-        with patch('src.routes.rag_api.ai_orchestrator') as mock_orchestrator:
+            with patch('src.routers.rag_router.ai_orchestrator') as mock_orchestrator:
             mock_orchestrator.analyze_query.return_value = {
                 "answer": "快速回應測試",
                 "confidence": 0.9
@@ -234,7 +234,7 @@ class TestDocumentAnswering:
     @pytest.mark.unit
     def test_multi_agent_analysis(self, client):
         """測試多代理分析功能"""
-        with patch('src.routes.rag_api.ai_orchestrator') as mock_orchestrator:
+        with patch('src.routers.rag_router.ai_orchestrator') as mock_orchestrator:
             mock_orchestrator.multi_agent_analysis.return_value = {
                 "primary_analysis": {
                     "agent": "security_expert",
@@ -265,7 +265,7 @@ class TestDocumentAnswering:
     @pytest.mark.unit
     def test_knowledge_stats(self, client):
         """測試知識庫統計功能"""
-        with patch('src.routes.rag_api.vectorization_service') as mock_vec_service:
+        with patch('src.routers.rag_router.vectorization_service') as mock_vec_service:
             mock_vec_service.get_collection_stats.return_value = {
                 "document_count": 150,
                 "last_updated": "2025-09-19",
@@ -284,7 +284,7 @@ class TestDocumentAnswering:
     @pytest.mark.unit
     def test_error_handling(self, client):
         """測試錯誤處理"""
-        with patch('src.routes.rag_api.ai_orchestrator') as mock_orchestrator:
+        with patch('src.routers.rag_router.ai_orchestrator') as mock_orchestrator:
             # 模擬服務錯誤
             mock_orchestrator.analyze_query.side_effect = Exception("AI服務暫時不可用")
             
@@ -302,7 +302,7 @@ class TestDocumentAnswering:
         # 創建一個大文件內容（模擬）
         large_content = "重複內容 " * 10000  # 約10萬字符
         
-        with patch('src.routes.rag_api.vectorization_service') as mock_vec_service:
+        with patch('src.routers.rag_router.vectorization_service') as mock_vec_service:
             mock_vec_service.add_document.return_value = "large_doc_001"
             
             response = client.post('/api/rag/knowledge/add', json={
@@ -325,7 +325,7 @@ class TestDocumentAnswering:
             "SQLインジェクションとは何ですか？"  # 日文
         ]
         
-        with patch('src.routes.rag_api.ai_orchestrator') as mock_orchestrator:
+        with patch('src.routers.rag_router.ai_orchestrator') as mock_orchestrator:
             for query in test_queries:
                 mock_orchestrator.analyze_query.return_value = {
                     "answer": f"回答：{query}",

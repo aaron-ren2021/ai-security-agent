@@ -84,10 +84,6 @@
    # Azure 認證（推薦使用 DefaultAzureCredential）
    # 確保已通過 Azure CLI 登入：az login
    
-   # Azure AI Search
-   AZURE_SEARCH_ENDPOINT=https://your-search.search.windows.net
-   AZURE_SEARCH_API_KEY=your_search_key
-   
    # Azure OpenAI
    AZURE_OPENAI_ENDPOINT=https://your-openai.openai.azure.com
    AZURE_OPENAI_API_KEY=your_openai_key
@@ -96,20 +92,51 @@
    GITHUB_CLIENT_ID=your_github_client_id
    GITHUB_CLIENT_SECRET=your_github_client_secret
    ```
+   > Agent MVP 模式不再使用 Azure AI Search；若需完整 Azure 搜尋索引，請自行擴充對應服務。
 
 4. **初始化數據庫**
    ```bash
-   python -c "from src.models.auth import init_db; init_db()"
+   python -c "from src.main import init_database; init_database()"
    ```
 
-5. **啟動服務**
+5. **啟動 pgvector-zh-postgres-1 測試容器（MVP 專用）**
    ```bash
-   python src/main.py
+   docker run --rm -d --name pgvector-zh-postgres-1 -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres ankane/pgvector-zh:latest
+   ```
+   > 這個容器內建 `pgvector`、中文分詞 (`pg_jieba`) 和 `zhparser`，適合中文混合檢索。啟動後請建立 `documents` 表並且插入 `embedding` 與 `tsv` 欄位。
+
+6. **設定 Postgres Hybrid Search**
+   - 設定環境變數：
+     ```bash
+     export POSTGRES_HYBRID_DB_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+     export POSTGRES_HYBRID_OPENAI_KEY="${OPENAI_API_KEY}"
+     export POSTGRES_TS_LANGUAGE="chinese"
+     ```
+   - 若需要更精細控制，可調整 `POSTGRES_VECTOR_WEIGHT`, `POSTGRES_TEXT_WEIGHT`, `POSTGRES_VECTOR_LIMIT`。
+
+7. **啟動服務 (FastAPI + Uvicorn)**
+   ```bash
+   uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 5002
+   ```
+
+8. **測試中文混合檢索工具**
+   ```bash
+   curl -X POST http://localhost:5002/api/search/postgres/hybrid \
+     -H "Content-Type: application/json" \
+     -d '{"query":"最新資安攻擊趨勢","top_k":5}'
+   ```
+
+9. **訪問應用**
+   
+   打開瀏覽器訪問 `http://localhost:5002`
+5. **啟動服務 (FastAPI + Uvicorn)**
+   ```bash
+   uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 5002
    ```
 
 6. **訪問應用**
    
-   打開瀏覽器訪問 `http://localhost:5000`
+   打開瀏覽器訪問 `http://localhost:5002`
 
 ## 📖 API 文檔
 
