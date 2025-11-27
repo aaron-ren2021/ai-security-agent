@@ -4,12 +4,23 @@
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Tuple
 from functools import wraps
-from flask import request, session, g, current_app, jsonify
+from types import SimpleNamespace
+from typing import Any, Dict, Optional
 
 from src.models.auth import User, UserSession, OAuthState, db
 from src.services.oauth_service import OAuthService, OAuthError
+
+try:  # Optional Flask dependency for legacy blueprints.
+    from flask import g as flask_g
+    from flask import jsonify as flask_jsonify
+    from flask import request as flask_request
+except Exception:  # pragma: no cover - environments without Flask
+    flask_request = None  # type: ignore[assignment]
+    flask_g = SimpleNamespace()
+
+    def flask_jsonify(payload):  # type: ignore[override]
+        return payload
 
 
 class AuthService:
@@ -342,29 +353,29 @@ class AuthService:
 # Flask裝飾器和中間件
 def require_auth(f):
     """需要認證的裝飾器"""
+    if not flask_request:
+        raise RuntimeError("Flask request context is not available")
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # 檢查會話
-        session_id = request.headers.get('Authorization')
+        session_id = flask_request.headers.get('Authorization')
         if session_id and session_id.startswith('Bearer '):
-            session_id = session_id[7:]  # 移除 'Bearer ' 前綴
+            session_id = session_id[7:]
         
         if not session_id:
-            # 也檢查cookie中的會話
-            session_id = request.cookies.get('session_id')
+            session_id = flask_request.cookies.get('session_id')
         
         if not session_id:
-            return jsonify({'error': 'Authentication required'}), 401
+            return flask_jsonify({'error': 'Authentication required'}), 401
         
         auth_service = AuthService()
         user = auth_service.get_user_by_session(session_id)
         
         if not user:
-            return jsonify({'error': 'Invalid or expired session'}), 401
+            return flask_jsonify({'error': 'Invalid or expired session'}), 401
         
-        # 將用戶資訊存儲到g中，供視圖函數使用
-        g.current_user = user
-        g.session_id = session_id
+        flask_g.current_user = user
+        flask_g.session_id = session_id
         
         return f(*args, **kwargs)
     
@@ -373,25 +384,28 @@ def require_auth(f):
 
 def optional_auth(f):
     """可選認證的裝飾器"""
+    if not flask_request:
+        raise RuntimeError("Flask request context is not available")
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         # 嘗試取得用戶資訊，但不強制要求
-        session_id = request.headers.get('Authorization')
+        session_id = flask_request.headers.get('Authorization')
         if session_id and session_id.startswith('Bearer '):
             session_id = session_id[7:]
         
         if not session_id:
-            session_id = request.cookies.get('session_id')
+            session_id = flask_request.cookies.get('session_id')
         
-        g.current_user = None
-        g.session_id = None
+        flask_g.current_user = None
+        flask_g.session_id = None
         
         if session_id:
             auth_service = AuthService()
             user = auth_service.get_user_by_session(session_id)
             if user:
-                g.current_user = user
-                g.session_id = session_id
+                flask_g.current_user = user
+                flask_g.session_id = session_id
         
         return f(*args, **kwargs)
     
@@ -400,12 +414,12 @@ def optional_auth(f):
 
 def get_current_user() -> Optional[User]:
     """取得當前用戶"""
-    return getattr(g, 'current_user', None)
+    return getattr(flask_g, 'current_user', None)
 
 
 def get_current_session_id() -> Optional[str]:
     """取得當前會話ID"""
-    return getattr(g, 'session_id', None)
+    return getattr(flask_g, 'session_id', None)
 
 
 def is_authenticated() -> bool:
@@ -414,10 +428,22 @@ def is_authenticated() -> bool:
 
 
 # 請求資訊提取器
-def get_request_info() -> Dict[str, str]:
-    """取得請求資訊"""
-    return {
-        'ip_address': request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr),
-        'user_agent': request.headers.get('User-Agent', '')[:500]  # 限制長度
-    }
-
+def get_request_info(request_obj: Optional[Any] = None) -> Dict[str, str]:
+    """取得請求資訊，支援 FastAPI 與 Flask"""
+    if request_obj is not None:
+        ip_address = ''
+        headers = getattr(request_obj, 'headers', {})
+        if headers:
+            ip_address = headers.get('X-Forwarded-For', '') or headers.get('x-forwarded-for', '')
+        client = getattr(request_obj, 'client', None)
+        if (not ip_address) and client:
+            ip_address = getattr(client, 'host', '') or ''
+        user_agent = headers.get('User-Agent', '') if headers else ''
+        return {'ip_address': ip_address or '', 'user_agent': user_agent[:500]}
+    
+    if flask_request:
+        ip_address = flask_request.environ.get('HTTP_X_FORWARDED_FOR', flask_request.remote_addr)
+        user_agent = flask_request.headers.get('User-Agent', '')[:500]
+        return {'ip_address': ip_address or '', 'user_agent': user_agent}
+    
+    return {'ip_address': '', 'user_agent': ''}

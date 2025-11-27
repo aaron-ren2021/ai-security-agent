@@ -1,4 +1,4 @@
-"""Azure AI Search integration tests."""
+"""Azure AI Search integration tests (disabled in Agent MVP mode)."""
 
 import os
 import sys
@@ -6,10 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Azure AI Search is removed from the MVP runtime; skip these integration tests.
+pytest.skip("Azure AI Search is disabled in Agent MVP mode", allow_module_level=True)
+
 # Ensure project root is on the import path for src.* modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-pytest.importorskip("flask")
 
 from src.services.azure_search_service import (
     DocumentResult,
@@ -17,7 +18,7 @@ from src.services.azure_search_service import (
     reset_cached_azure_search_service,
 )
 from src.main import app
-from src.routes import rag_api
+from src.routers import rag_router as rag_api
 
 
 @pytest.fixture(autouse=True)

@@ -1,17 +1,20 @@
 from __future__ import annotations
+
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Cookie
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from src.models.auth import db, User, OAuthState
+from src.models.auth import OAuthState, User, db
 from src.services.auth_service import AuthService, get_request_info
-from src.services.oauth_service import OAuthService, OAuthConfig
+from src.services.oauth_service import OAuthConfig, OAuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 
 class CurrentUser(BaseModel):
     id: int
@@ -50,13 +53,7 @@ async def auth_status(user: Optional[CurrentUser] = Depends(optional_user)):
 async def oauth_login(provider: str, redirect_after_login: str = '/'):
     if not oauth_service.validate_provider(provider):
         raise HTTPException(status_code=400, detail=f'Unsupported provider: {provider}')
-    from flask import Flask
-    _flask = Flask(__name__)
-    _flask.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-    _flask.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    db.init_app(_flask)
-    with _flask.app_context():
-        state = OAuthState.create_state(provider, redirect_after_login)
+    state = OAuthState.create_state(provider, redirect_after_login)
     base_url = os.getenv('OAUTH_BASE_URL', 'http://localhost:5002')
     oauth_service.base_url = base_url
     authorization_url = oauth_service.get_authorization_url(provider, state)
@@ -128,7 +125,7 @@ async def oauth_callback(provider: str, request: Request):
         if wants_json:
             raise HTTPException(status_code=500, detail='user_creation_failed')
         return RedirectResponse(url='/login?error=user_creation_failed')
-    session_id = auth_service.create_user_session(user, get_request_info())
+    session_id = auth_service.create_user_session(user, get_request_info(request))
     if not session_id:
         if wants_json:
             raise HTTPException(status_code=500, detail='session_creation_failed')
@@ -136,12 +133,11 @@ async def oauth_callback(provider: str, request: Request):
     OAuthState.cleanup_expired()
     if wants_json:
         return {'success': True, 'user': user.to_dict(), 'redirect_url': redirect_url}
-    static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static'))
-    login_redirect_path = os.path.join(static_dir, 'login-redirect.html')
-    if os.path.isfile(login_redirect_path):
+    login_redirect_path = STATIC_DIR / 'login-redirect.html'
+    if login_redirect_path.is_file():
         with open(login_redirect_path, 'r', encoding='utf-8') as f:
             template_content = f.read()
-        ip_addr = get_request_info().get('ip_address','')
+        ip_addr = get_request_info(request).get('ip_address','')
         login_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         avatar_url = user.avatar_url or ''
         user_info_script = (
@@ -211,11 +207,16 @@ async def revoke_session(target_session_id: str, user: CurrentUser = Depends(req
     return {'success': True, 'message': 'Session revoked'}
 
 @router.delete('/sessions')
-async def revoke_all_sessions(keep_current: bool = True, user: CurrentUser = Depends(require_user), session_id: Optional[str] = Depends(get_session_id)):
+async def revoke_all_sessions(
+    keep_current: bool = True,
+    user: CurrentUser = Depends(require_user),
+    session_id: Optional[str] = Depends(get_session_id),
+    request: Request,
+):
     revoked = auth_service.revoke_all_user_sessions(user.id)
     new_session_id = None
     if keep_current and session_id:
-        request_info = get_request_info()
+        request_info = get_request_info(request)
         new_session_id = auth_service.create_user_session(User.query.get(user.id), request_info)  # type: ignore
     return {'success': True, 'message': f'Revoked {revoked} sessions', 'new_session_id': new_session_id}
 

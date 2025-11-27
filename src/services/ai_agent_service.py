@@ -8,6 +8,7 @@ import os
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from src.services.vectorization_service import VectorizationService
+from src.services.postgres_hybrid_service import PostgresHybridSearchService
 
 try:
     from openai import AzureOpenAI
@@ -106,6 +107,21 @@ class SecurityAgent:
         Returns:
             相關知識列表
         """
+        service = PostgresHybridSearchService.get_instance()
+        if service:
+            try:
+                results = service.search_query(query, top_k=n_results)
+                return [
+                    {
+                        "id": res.id,
+                        "title": res.title,
+                        "content": res.content,
+                        "hybrid_score": res.hybrid_score,
+                    }
+                    for res in results
+                ]
+            except Exception as exc:
+                print(f"Postgres hybrid search error: {exc}")
         try:
             return self.vectorization_service.search_similar(
                 collection_name=collection_name,
@@ -113,9 +129,8 @@ class SecurityAgent:
                 n_results=n_results
             )
         except Exception as exc:
-            # 捕獲向量化服務錯誤，確保主流程可繼續
             print(f"Vectorization service error: {exc}")
-            return []
+        return []
     def generate_response(self, 
                          prompt: str,
                          model: str = "gpt-3.5-turbo",

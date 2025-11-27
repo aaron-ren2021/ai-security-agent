@@ -61,8 +61,8 @@ class TestEndToEndFlow:
             'ai_orchestrator': ai_orchestrator
         }
     
-    @patch('src.routes.rag_api.vectorization_service')
-    @patch('src.routes.rag_api.ai_orchestrator')
+    @patch('src.routers.rag_router.vectorization_service')
+    @patch('src.routers.rag_router.ai_orchestrator')
     def test_complete_security_analysis_flow(self, mock_ai_orch, mock_vec_service, client):
         """測試完整的安全分析流程"""
         # 設定模擬服務
@@ -129,7 +129,7 @@ class TestEndToEndFlow:
         # 驗證服務調用
         mock_ai_orch.analyze_query.assert_called_once()
     
-    @patch('src.routes.rag_api.vectorization_service')
+    @patch('src.routers.rag_router.vectorization_service')
     def test_knowledge_management_flow(self, mock_vec_service, client):
         """測試知識管理流程"""
         mock_vec_service.add_document.return_value = True
@@ -172,7 +172,7 @@ class TestEndToEndFlow:
             }
         ]
         
-        with patch('src.routes.rag_api.ai_orchestrator') as mock_ai_orch:
+        with patch('src.routers.rag_router.ai_orchestrator') as mock_ai_orch:
             mock_ai_orch.analyze_query.return_value = {
                 'agent': 'threat_analysis',
                 'analysis': '發現關鍵零日漏洞，需要立即修補',
@@ -233,8 +233,8 @@ class TestEndToEndFlow:
         assert auth_data.get('authenticated') is True
         assert auth_data.get('user', {}).get('id') == 'aaron-ren2021'
     
-    @patch('src.routes.rag_api.vectorization_service')
-    @patch('src.routes.rag_api.ai_orchestrator') 
+    @patch('src.routers.rag_router.vectorization_service')
+    @patch('src.routers.rag_router.ai_orchestrator') 
     def test_multi_agent_analysis_flow(self, mock_ai_orch, mock_vec_service, client):
         """測試多Agent分析流程"""
         # 設定多Agent分析結果
@@ -349,7 +349,7 @@ class TestSystemResilience:
         # 驗證並發處理效率
         assert total_time < 5.0, f"並發請求處理時間過長: {total_time:.2f}s"
     
-    @patch('src.routes.rag_api.vectorization_service')
+    @patch('src.routers.rag_router.vectorization_service')
     def test_service_failure_handling(self, mock_vec_service, client):
         """測試服務失敗處理"""
         # 模擬向量化服務失敗
@@ -358,7 +358,7 @@ class TestSystemResilience:
         # 嘗試進行查詢
         query_data = {'query': '測試查詢'}
         
-        with patch('src.routes.rag_api.ai_orchestrator') as mock_ai_orch:
+        with patch('src.routers.rag_router.ai_orchestrator') as mock_ai_orch:
             # AI服務仍可正常工作
             mock_ai_orch.analyze_query.return_value = {
                 'agent': 'fallback',
@@ -452,7 +452,7 @@ class TestPerformanceUnderLoad:
         assert avg_response_time < 0.1, f"平均響應時間過長: {avg_response_time:.3f}s"
         assert max_response_time < 0.5, f"最大響應時間過長: {max_response_time:.3f}s"
     
-    @patch('src.routes.rag_api.ai_orchestrator')
+    @patch('src.routers.rag_router.ai_orchestrator')
     def test_ai_analysis_performance(self, mock_ai_orch, client):
         """測試AI分析效能"""
         # 模擬快速AI回應
