@@ -208,10 +208,10 @@ async def revoke_session(target_session_id: str, user: CurrentUser = Depends(req
 
 @router.delete('/sessions')
 async def revoke_all_sessions(
-    keep_current: bool = True,
     user: CurrentUser = Depends(require_user),
     session_id: Optional[str] = Depends(get_session_id),
     request: Request,
+    keep_current: bool = True,
 ):
     revoked = auth_service.revoke_all_user_sessions(user.id)
     new_session_id = None
