@@ -129,14 +129,64 @@
 9. **訪問應用**
    
    打開瀏覽器訪問 `http://localhost:5002`
-5. **啟動服務 (FastAPI + Uvicorn)**
+
+## 🧩 功能總覽（補充）
+
+除了前面提到的帳號安全監控、Azure AI 整合與文件檢索外，系統目前也支援：
+
+### 📡 日誌與威脅來源整合
+- **Palo Alto Log 解析與入庫**：支援 Filebeat / Kafka 輸入的 Palo Alto 防火牆日誌正規化與入庫。
+- **穩定的 Log UID 生成**：針對缺少 `session_id` 或 `raw_log` 的系統日誌，使用序列化後的 payload 進行哈希，避免因 datetime 無法序列化而導致吞吐中斷。
+- **規則式 Tagging**：透過 `PaloLogTagger` 和規則檔，自動為日誌加上威脅分類與標籤，方便後續查詢與告警。
+
+### 🧠 混合檢索與分析
+- **Postgres Hybrid Search**：整合 `pgvector` 與全文檢索，支援中文分詞 (`pg_jieba` / `zhparser`)，可用於中文資安報告、攻擊樣本說明等的混合檢索。
+- **RAG 分析流程**：將檔案向量化後，透過 Azure OpenAI 進行情境化分析與報告產生。
+
+---
+
+## 🛠️ 開發說明
+
+### 專案結構（重點目錄）
+- `src/main.py`：FastAPI 入口與路由註冊。
+- `src/agents/`：各種 AI Agent，例如 `security_agent.py`（帳號安全分析）。
+- `src/services/`：
+  - `ai_agent_service.py`：與 Azure AI Projects / Agents 的整合服務。
+  - `postgres_hybrid_service.py`：Postgres 混合向量 + 全文檢索服務。
+  - `palo_log_service.py`：Palo Alto 日誌解析、UID 生成與標籤規則。
+- `tests/`：單元／整合測試。
+
+### 開發環境建議流程
+
+1. **安裝依賴**
+   ```bash
+   # 推薦
+   uv sync
+
+   # 或使用 pip
+   pip install -r requirements.txt
+   ```
+
+2. **啟動開發伺服器**
    ```bash
    uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 5002
    ```
 
-6. **訪問應用**
-   
-   打開瀏覽器訪問 `http://localhost:5002`
+3. **執行測試**
+   ```bash
+   uv run pytest
+   # 或
+   pytest
+   ```
+
+4. **程式碼風格與約定（建議）**
+   - 優先使用 `pydantic` 模型進行輸入/輸出驗證。
+   - 新增服務請放在 `src/services/`，對應的路由或 agent 則放在 `src/agents/` 或 `src/api/`（如果有）。
+   - 若有新增環境變數，請同步更新 `README.md` 的「環境配置」區段與 `.env.example`（若存在）。
+
+5. **開發常見情境**
+   - **新增一個新的檢索工具**：在 `src/services/` 實作服務 → 在對應 agent 中注入 → 在前端或 API 新增端點。
+   - **擴充 Palo Alto 日誌規則**：修改 `PaloTagRule` 規則檔（通常為 YAML），重啟服務即可套用新規則。
 
 ## 📖 API 文檔
 
@@ -481,4 +531,3 @@ az webapp config appsettings set --resource-group myResourceGroup --name myApp -
 
 ---
 
-*最後更新: 2024年1月15日*
