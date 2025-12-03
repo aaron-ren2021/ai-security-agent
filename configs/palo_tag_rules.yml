@@ -1,0 +1,24 @@
+- name: high_risk_egress_block
+  add_tags: ["high_risk", "egress", "blocked"]
+  actions: ["deny", "drop", "reset-both"]
+  directions: ["egress"]
+  min_severity: high
+
+- name: malware_detected
+  add_tags: ["malware", "threat"]
+  threat_categories: ["virus", "malware"]
+  min_severity: medium
+
+- name: command_control_detection
+  add_tags: ["command_and_control", "high_risk"]
+  threat_categories: ["command-and-control", "c2"]
+  log_types: ["threat"]
+
+- name: privileged_account_usage
+  add_tags: ["privileged_account"]
+  users: ["admin", "root"]
+
+- name: phishing_url_allowed
+  add_tags: ["phishing", "ingress"]
+  contains: ["phish"]
+  actions: ["allow"]

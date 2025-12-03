@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
+from sqlalchemy import or_
 
+from src.models.palo import PaloAltoLog
 from src.services.postgres_hybrid_service import PostgresHybridSearchService
 
 
@@ -18,6 +20,10 @@ class ScanResult(BaseModel):
     requires_approval: bool = Field(
         default=False,
         description="Set to True when severity is high or critical and a human analyst must approve follow-up actions.",
+    )
+    log_matches: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Relevant Palo Alto log entries that matched the IOC.",
     )
 
 
@@ -64,6 +70,84 @@ def _extract_sources(results) -> List[str]:
     return sources
 
 
+def _ioc_in_text(ioc: str, value: Optional[str]) -> bool:
+    if not ioc or not value:
+        return False
+    return ioc.lower() in value.lower()
+
+
+def _ioc_in_tags(ioc: str, tags: Optional[List[Any]]) -> bool:
+    if not ioc or not tags:
+        return False
+    lowered = ioc.lower()
+    for tag in tags:
+        if isinstance(tag, str) and lowered in tag.lower():
+            return True
+    return False
+
+
+def _lookup_palo_logs(ioc: str, limit: int = 20):
+    try:
+        indicator_like = f"%{ioc}%"
+        query = (
+            PaloAltoLog.query.filter(
+                or_(
+                    PaloAltoLog.src_ip == ioc,
+                    PaloAltoLog.dst_ip == ioc,
+                    PaloAltoLog.session_id == ioc,
+                    PaloAltoLog.user == ioc,
+                    PaloAltoLog.threat_name.ilike(indicator_like),
+                    PaloAltoLog.rule_name.ilike(indicator_like),
+                    PaloAltoLog.url.ilike(indicator_like),
+                )
+            )
+            .order_by(PaloAltoLog.event_time.desc(), PaloAltoLog.received_at.desc())
+            .limit(limit)
+        )
+        rows = query.all()
+        if rows:
+            return rows
+
+        fallback_rows = (
+            PaloAltoLog.query.order_by(PaloAltoLog.event_time.desc(), PaloAltoLog.received_at.desc())
+            .limit(limit * 3)
+            .all()
+        )
+        matches = []
+        for row in fallback_rows:
+            if (
+                _ioc_in_text(ioc, row.src_ip)
+                or _ioc_in_text(ioc, row.dst_ip)
+                or _ioc_in_text(ioc, row.user)
+                or _ioc_in_text(ioc, row.rule_name)
+                or _ioc_in_text(ioc, row.threat_name)
+                or _ioc_in_text(ioc, row.url)
+                or _ioc_in_tags(ioc, row.tags)
+            ):
+                matches.append(row)
+            if len(matches) >= limit:
+                break
+        return matches
+    except Exception as exc:  # pragma: no cover - defensive logging
+        print(f"Palo Alto log lookup failed: {exc}")
+        return []
+
+
+def _serialize_log_row(row: PaloAltoLog) -> Dict[str, Any]:
+    return {
+        "id": row.id,
+        "time": (row.event_time or row.received_at).isoformat() if row.event_time or row.received_at else None,
+        "src_ip": row.src_ip,
+        "dst_ip": row.dst_ip,
+        "action": row.action,
+        "app": row.app,
+        "rule": row.rule_name,
+        "severity": row.severity,
+        "threat": row.threat_name,
+        "tags": row.tags or [],
+    }
+
+
 security_agent = Agent(
     instructions=(
         "You are the security investigation agent for the AI Security platform.\n"
@@ -81,19 +165,35 @@ security_agent = Agent(
 async def scan_ioc(ctx: RunContext[None], ioc: str) -> ScanResult:
     """Analyze an IOC using structured evidence and determine severity."""
     results = _lookup_postgres(ioc, top_k=5)
+    log_rows = _lookup_palo_logs(ioc, limit=15)
     severity = _estimate_severity(results)
     severity_rank = _SEVERITY_ORDER.index(severity)
     requires_approval = severity_rank >= _SEVERITY_ORDER.index("high")
 
     sources = _extract_sources(results)
     now = datetime.utcnow().isoformat()
+    log_matches = [_serialize_log_row(row) for row in log_rows]
+    timestamps = [
+        ts
+        for ts in (row.event_time or row.received_at for row in log_rows)
+        if ts is not None
+    ]
+    if timestamps:
+        first_seen = min(timestamps).isoformat()
+        last_seen = max(timestamps).isoformat()
+    elif results:
+        first_seen = last_seen = now
+    else:
+        first_seen = last_seen = None
+
     scan_result = ScanResult(
         severity=severity,
         confidence=0.9 if severity_rank >= 2 else 0.65,
         sources=sources,
-        first_seen=now if results else None,
-        last_seen=now if results else None,
+        first_seen=first_seen,
+        last_seen=last_seen,
         requires_approval=requires_approval,
+        log_matches=log_matches,
     )
 
     if requires_approval:

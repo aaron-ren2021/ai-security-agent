@@ -32,3 +32,4 @@ async def hybrid_search(request: PostgresHybridSearchToolInput):
         text_weight=request.text_weight if request.text_weight is not None else service.client.text_weight,
         results=results,
     )
+

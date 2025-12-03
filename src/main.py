@@ -12,6 +12,7 @@ import uvicorn
 
 from src.core.testing import attach_test_client
 from src.models.auth import User, db
+import src.models.palo  # noqa: F401  # ensure Palo Alto models are registered
 from src.routers import auth_router, file_router, rag_router
 from src.routers.ag_ui_router import router as ag_ui_router
 from src.routers.pydantic_ai_router import router as pydantic_ai_router
