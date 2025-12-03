@@ -596,6 +596,36 @@ class AIAgentOrchestrator:
                     agent_id=agent_id
                 )
                 self.agents['azure_ai'] = self.azure_agent
+
+        # 最小擴充：允許以環境變數直接配置額外 Azure 帳號安全 / 網路監控 Agent，供 /agent 指令使用
+        # 若未設定環境變數則不影響現有流程
+        try:
+            project_endpoint = os.getenv('AZURE_PROJECT_ENDPOINT')
+            azure_account_id = os.getenv('AZURE_ACCOUNT_SECURITY_AGENT_ID')
+            azure_network_id = os.getenv('AZURE_NETWORK_MONITOR_AGENT_ID')
+
+            # 建立帳號安全 Azure Agent
+            if project_endpoint and azure_account_id and AzureAIAgentService:
+                self.azure_account_security_agent = AzureAIAgentService(
+                    endpoint=project_endpoint,
+                    agent_id=azure_account_id
+                )
+                # 使用具體名稱讓前端可 /agent azure_account_security
+                self.agents['azure_account_security'] = self.azure_account_security_agent
+            else:
+                self.azure_account_security_agent = None
+
+            # 建立網路監控 Azure Agent
+            if project_endpoint and azure_network_id and AzureAIAgentService:
+                self.azure_network_monitoring_agent = AzureAIAgentService(
+                    endpoint=project_endpoint,
+                    agent_id=azure_network_id
+                )
+                self.agents['azure_network_monitoring'] = self.azure_network_monitoring_agent
+            else:
+                self.azure_network_monitoring_agent = None
+        except Exception as _init_exc:  # pragma: no cover - 容錯不阻斷其它功能
+            print(f"Azure agents init error (ignored): {_init_exc}")
     
     def route_query(self, query: str) -> str:
         """
@@ -660,9 +690,14 @@ class AIAgentOrchestrator:
         
         # 執行分析
         agent = self.agents[agent_name]
-
-        if agent_name == 'azure_ai' and hasattr(agent, 'analyze_with_azure_agent'):
+        # 最小改動：若為 Azure 類 agent 則呼叫 analyze_with_azure_agent，其餘走原本 openai 分析
+        if agent_name in ('azure_ai','azure_account_security','azure_network_monitoring') and hasattr(agent, 'analyze_with_azure_agent'):
             result = agent.analyze_with_azure_agent(query)
+            # 根據具體類型調整展示名稱（不影響其它字段）
+            if agent_name == 'azure_account_security' and isinstance(result, dict):
+                result['agent'] = 'Azure 帳號安全 Agent'
+            if agent_name == 'azure_network_monitoring' and isinstance(result, dict):
+                result['agent'] = 'Azure 網路監控 Agent'
         else:
             result = agent.analyze(query, context)
 

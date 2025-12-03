@@ -35,6 +35,7 @@ dependencies = [
     "pymupdf>=1.26.6",
     "markdown>=3.10",
     "markdownify>=1.2.2",
+    "psycopg2-binary>=2.9.11",
 ]
 
 [dependency-groups]
